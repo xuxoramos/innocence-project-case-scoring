@@ -204,3 +204,24 @@ The POC is successful if, and only if, it demonstrates **all** of the following 
 ---
 
 *This brief treats Sections 3 and 6 as binding constraints on every other section, not as caveats appended after the fact. Any future revision that changes scope, output format, or success criteria should be checked against those sections before being adopted.*
+
+---
+
+## 11. Repository Scaffold (POC)
+
+The codebase mirrors the pipeline in Section 5, with every processing step
+optional so already-digitized cases can skip OCR/text/tabular extraction:
+
+```
+src/risk_engine/
+  models.py            Domain types: Case, Document, Flag (separate OCR/extraction confidence), Worklist
+  config.py            Confidence floor + paths
+  acquisition/         Multi-jurisdiction sources (registry). Pittsburgh = allegheny_pa; add small cities here
+  processing/          Optional, composable steps: OCR → text → tabular (pipeline runs only what applies)
+  scoring/             Swappable ranking algorithms (registry) to A/B test learning models; baseline = flag_count
+  ui/app.py            Streamlit UI: navigate acquired → OCR/text → tabular, with flags, confidences, source passages, relative rank only
+  cli.py               Wires acquisition → processing → scoring
+tests/                 End-to-end + unit tests
+```
+
+Run: `pip install -e .[dev]` then `pytest`. CLI: `risk-engine --jurisdiction allegheny_pa --scorer flag_count`. UI: `pip install -e .[ui]` then `streamlit run src/risk_engine/ui/app.py`.
