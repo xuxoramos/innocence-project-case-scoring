@@ -103,17 +103,30 @@ class CourtListenerSource(AcquisitionSource):
         session.headers["Accept"] = "application/json"
         return session
 
-    @staticmethod
-    def _retry_after_seconds(resp, attempt: int) -> float:
-        """Seconds to wait after a 429, honoring Retry-After then backing off."""
+    #: Hard ceiling (seconds) on any single 429 wait. CourtListener's DRF
+    #: throttling returns a ``Retry-After`` equal to the seconds until the
+    #: *daily* window resets — up to ~86400s. Honoring that verbatim would
+    #: park the process in a single multi-hour ``time.sleep`` (observed: an
+    #: 8.5h hang on the first record). Cap it so we retry promptly and, if the
+    #: limit is truly exhausted, fail fast with the actionable 429 error below.
+    MAX_RETRY_WAIT = 60.0
+
+    @classmethod
+    def _retry_after_seconds(cls, resp, attempt: int) -> float:
+        """Seconds to wait after a 429, honoring Retry-After then backing off.
+
+        The result is always clamped to ``MAX_RETRY_WAIT`` so a large
+        server-supplied ``Retry-After`` (e.g. a daily-quota reset window) can
+        never translate into a multi-hour sleep.
+        """
         header = resp.headers.get("Retry-After")
         if header:
             try:
-                return float(header)
+                return min(float(header), cls.MAX_RETRY_WAIT)
             except ValueError:
                 pass  # HTTP-date form is unusual here; fall through to backoff
         # Exponential backoff with a sane ceiling (1, 2, 4, 8, ... <= 60s).
-        return min(2.0**attempt, 60.0)
+        return min(2.0**attempt, cls.MAX_RETRY_WAIT)
 
     def _get(self, session, path: str, params: dict | None = None) -> dict:
         url = path if path.startswith("http") else f"{self.BASE_URL}/{path.lstrip('/')}"

@@ -46,3 +46,20 @@ def test_fetch_is_noop_without_opinion_ids():
     case = src._result_to_case({"cluster_id": 7, "opinions": []})
     # No opinion ids -> fetch must not attempt any network I/O.
     assert src.fetch(case).documents == []
+
+
+class _FakeResp:
+    def __init__(self, retry_after: str | None) -> None:
+        self.headers = {} if retry_after is None else {"Retry-After": retry_after}
+
+
+def test_retry_after_is_capped_to_avoid_multi_hour_sleep():
+    cap = CourtListenerSource.MAX_RETRY_WAIT
+    # A daily-quota reset window (huge Retry-After) must never exceed the cap.
+    assert CourtListenerSource._retry_after_seconds(_FakeResp("86400"), 0) == cap
+    # A small, honest Retry-After is respected as-is.
+    assert CourtListenerSource._retry_after_seconds(_FakeResp("5"), 0) == 5.0
+    # Malformed header falls through to exponential backoff (also capped).
+    assert CourtListenerSource._retry_after_seconds(_FakeResp("soon"), 0) == 1.0
+    assert CourtListenerSource._retry_after_seconds(_FakeResp(None), 10) == cap
+
