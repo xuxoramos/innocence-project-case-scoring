@@ -35,6 +35,7 @@ import csv
 import gzip
 import os
 import re
+import sys
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,6 +46,14 @@ from ..models import Case, Document
 
 if TYPE_CHECKING:
     from ..retrieval import CandidateMatch, MatchCriteria
+
+# Opinion (and some cluster) text fields routinely exceed Python's default 128 KB
+# per-field CSV cap — a full court opinion is often hundreds of KB. Lift the cap
+# to the platform maximum so streaming a snapshot never dies mid-file.
+try:
+    csv.field_size_limit(sys.maxsize)
+except OverflowError:  # pragma: no cover - platform C long is narrower than maxsize
+    csv.field_size_limit(2**31 - 1)
 
 #: Public bulk-data bucket (no credentials needed; HTTP GET works anonymously).
 BULK_BUCKET_URL = "https://com-courtlistener-storage.s3-us-west-2.amazonaws.com"

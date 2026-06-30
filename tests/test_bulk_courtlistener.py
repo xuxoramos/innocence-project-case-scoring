@@ -76,6 +76,19 @@ def test_iter_cluster_records_reads_gzip(tmp_path):
     assert {r.cluster_id for r in rows} == {"C1", "C2", "C3"}
 
 
+def test_iter_cluster_records_handles_fields_over_default_csv_limit(tmp_path):
+    # Real snapshots carry opinion/cluster text fields far larger than Python's
+    # default 128 KB per-field cap; the reader must not die on them.
+    huge = "x" * 200_000
+    csv_text = (
+        "id,case_name,case_name_full,case_name_short,date_filed,docket_id\n"
+        f'C9,Commonwealth v. Big,"{huge}",,1999-01-01,D9\n'
+    )
+    rows = list(iter_cluster_records(_write(tmp_path / "big.csv", csv_text)))
+    assert len(rows) == 1
+    assert rows[0].cluster_id == "C9" and rows[0].year == 1999
+
+
 def test_build_index_is_bounded_to_relevant_surnames(tmp_path):
     matcher = BulkCourtListenerMatcher(_write(tmp_path / "clusters.csv", _CLUSTERS))
     matcher.build_index(["doswell"])
