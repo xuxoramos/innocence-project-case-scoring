@@ -1,0 +1,10 @@
+[
+  {
+    "_comment": "TEMPLATE ONLY — not loaded (filename starts with underscore). Copy to a file like 'allegheny.json' and populate ONLY from formal public records (bar disciplinary actions, court opinions making findings, published misconduct findings). Every entry MUST cite its specific source. The names below are fictional and illustrative.",
+    "name": "Jane Q. Example",
+    "role": "prosecutor",
+    "finding": "Brady violation found on direct appeal (illustrative, fictional)",
+    "source": "Commonwealth v. Fictional, 000 A.0d 000 (Pa. Super. 0000) (EXAMPLE)",
+    "aliases": ["J. Q. Example"]
+  }
+]

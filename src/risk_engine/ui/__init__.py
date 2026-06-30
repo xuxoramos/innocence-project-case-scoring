@@ -1,1 +1,1 @@
-"""Streamlit UI package. Run with: streamlit run src/risk_engine/ui/app.py"""
+"""Web UI package (FastAPI + Jinja2 + htmx). Run with: python -m risk_engine.ui"""

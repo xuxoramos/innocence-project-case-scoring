@@ -1,0 +1,12 @@
+{# Error fragment: a source/network failure during retrieval, shown honestly. #}
+<style>
+  .err { border: 1px solid #b00020; background: #fdecea; border-radius: 6px; padding: 1rem 1.2rem; }
+  .err h2 { margin: 0 0 .4rem; font-size: 1rem; color: #b00020; }
+  .err code { font-size: .82rem; }
+</style>
+<div class="err">
+  <h2>Could not retrieve records from "{{ source_key }}"</h2>
+  <p>The source raised an error. Live sources need network access and a
+  <code>COURTLISTENER_API_TOKEN</code>; the <code>allegheny_pa</code> fixture runs offline.</p>
+  <p><code>{{ message }}</code></p>
+</div>

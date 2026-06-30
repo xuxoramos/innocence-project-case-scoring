@@ -6,6 +6,7 @@ County (Pittsburgh) source; others can be plugged in immediately.
 """
 
 from .base import AcquisitionSource, get_source, list_sources, register_source
+from .courtlistener import PA_APPELLATE_COURTS, CourtListenerSource
 from .pittsburgh import AlleghenyCountySource
 
 __all__ = [
@@ -14,4 +15,6 @@ __all__ = [
     "get_source",
     "list_sources",
     "AlleghenyCountySource",
+    "CourtListenerSource",
+    "PA_APPELLATE_COURTS",
 ]

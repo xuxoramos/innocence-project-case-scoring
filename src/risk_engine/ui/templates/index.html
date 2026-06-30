@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Intake Flagging POC</title>
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    :root { --gap: #b00020; --found: #1b5e20; --clean: #455a64; --line: #d0d0d0; }
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+    header { padding: 1rem 1.5rem; background: #102a43; color: #fff; }
+    header h1 { margin: 0 0 .25rem; font-size: 1.2rem; }
+    header p { margin: 0; font-size: .85rem; opacity: .85; }
+    main { display: grid; grid-template-columns: minmax(320px, 420px) 1fr; gap: 1.5rem; padding: 1.5rem; }
+    fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 1rem; padding: .75rem 1rem 1rem; }
+    legend { font-weight: 600; padding: 0 .4rem; }
+    label { display: block; font-size: .8rem; font-weight: 600; margin: .6rem 0 .15rem; }
+    input, select, textarea { width: 100%; box-sizing: border-box; padding: .4rem .5rem;
+      border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+    textarea { min-height: 4rem; resize: vertical; }
+    button { background: #102a43; color: #fff; border: 0; border-radius: 5px;
+      padding: .6rem 1.1rem; font: inherit; font-weight: 600; cursor: pointer; }
+    button:hover { background: #1d4e79; }
+    .meta { background: #f4f7fb; }
+    #result { min-height: 4rem; }
+    .htmx-indicator { display: none; color: #555; }
+    .htmx-request .htmx-indicator { display: inline; }
+    .placeholder { color: #777; border: 1px dashed var(--line); border-radius: 6px; padding: 1.5rem; }
+    nav.tabs { display: flex; gap: .25rem; padding: 0 1.5rem; background: #0b2235; }
+    nav.tabs a { color: #cbd6e2; text-decoration: none; font-size: .85rem; font-weight: 600;
+      padding: .55rem .9rem; border-bottom: 3px solid transparent; }
+    nav.tabs a:hover { color: #fff; }
+    nav.tabs a.active { color: #fff; border-bottom-color: #4a90d9; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Intake Flagging &mdash; element review</h1>
+    <p>{{ scope_statement }}</p>
+  </header>
+  <nav class="tabs">
+    <a href="/" class="active">Intake</a>
+    <a href="/cases">Exoneration cases</a>
+    <a href="/analytics">Analytics</a>
+  </nav>
+  <main>
+    <form hx-post="/flag" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy">
+      <fieldset class="meta">
+        <legend>Run settings</legend>
+        <label for="_source">Record source</label>
+        <select id="_source" name="_source">
+          {% for s in sources %}
+          <option value="{{ s.key }}" {% if s.key == default_source %}selected{% endif %}>{{ s.label }}</option>
+          {% endfor %}
+        </select>
+        <label for="_applicant_ref">Applicant reference</label>
+        <input id="_applicant_ref" name="_applicant_ref" placeholder="e.g. intake-2025-014" />
+        <label for="_chapter">Chapter</label>
+        <input id="_chapter" name="_chapter" value="PA" />
+      </fieldset>
+
+      {% for group in field_groups %}
+      <fieldset>
+        <legend>{{ group.label }}</legend>
+        {% for f in group.fields %}
+        <label for="{{ f.key }}">{{ f.label }}</label>
+        {% if f.multiline %}
+        <textarea id="{{ f.key }}" name="{{ f.key }}"></textarea>
+        {% else %}
+        <input id="{{ f.key }}" name="{{ f.key }}" />
+        {% endif %}
+        {% endfor %}
+      </fieldset>
+      {% endfor %}
+
+      <button type="submit">Flag elements</button>
+      <span id="busy" class="htmx-indicator">&nbsp;working&hellip;</span>
+    </form>
+
+    <section id="result">
+      <div class="placeholder">Submit an intake to see flagged elements and record-search results.</div>
+    </section>
+  </main>
+</body>
+</html>

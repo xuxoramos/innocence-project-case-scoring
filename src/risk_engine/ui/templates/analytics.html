@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Analytics &mdash; Intake Flagging POC</title>
+  <style>
+    :root { --line: #d0d0d0; }
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+    header { padding: 1rem 1.5rem; background: #102a43; color: #fff; }
+    header h1 { margin: 0 0 .25rem; font-size: 1.2rem; }
+    header p { margin: 0; font-size: .85rem; opacity: .85; }
+    nav.tabs { display: flex; gap: .25rem; padding: 0 1.5rem; background: #0b2235; }
+    nav.tabs a { color: #cbd6e2; text-decoration: none; font-size: .85rem; font-weight: 600;
+      padding: .55rem .9rem; border-bottom: 3px solid transparent; }
+    nav.tabs a:hover { color: #fff; }
+    nav.tabs a.active { color: #fff; border-bottom-color: #4a90d9; }
+    main { padding: 1.5rem; max-width: 70rem; }
+    .provenance { font-size: .82rem; color: #555; background: #f4f7fb; border-left: 3px solid #102a43;
+      padding: .6rem .9rem; border-radius: 0 6px 6px 0; margin: 0 0 1.2rem; }
+    .cards { display: flex; gap: 1rem; flex-wrap: wrap; margin: 0 0 1.5rem; }
+    .card { border: 1px solid var(--line); border-radius: 8px; padding: .8rem 1.1rem; min-width: 9rem; }
+    .card .n { font-size: 1.6rem; font-weight: 700; }
+    .card .l { font-size: .78rem; color: #555; text-transform: uppercase; letter-spacing: .03em; }
+    h2 { font-size: .95rem; text-transform: uppercase; letter-spacing: .03em; color: #444;
+      margin: 1.6rem 0 .5rem; }
+    .bars { display: grid; grid-template-columns: minmax(10rem, 16rem) 1fr auto; gap: .3rem .8rem; align-items: center; }
+    .bars .lab { font-size: .82rem; }
+    .bar { background: #e8edf3; border-radius: 4px; height: 1rem; overflow: hidden; }
+    .bar > span { display: block; height: 100%; background: #4a90d9; }
+    .bars .v { font-size: .8rem; color: #555; text-align: right; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .thin { color: #b08900; font-size: .75rem; font-weight: 700; }
+    .empty { color: #777; border: 1px dashed var(--line); border-radius: 6px; padding: 1.5rem; }
+    code { background: #f2f2f2; padding: .05rem .3rem; border-radius: 3px; }
+    .note { font-size: .8rem; color: #666; margin: .3rem 0 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Analytics</h1>
+    <p>{{ scope_statement }}</p>
+  </header>
+  <nav class="tabs">
+    <a href="/">Intake</a>
+    <a href="/cases">Exoneration cases</a>
+    <a href="/analytics" class="active">Analytics</a>
+  </nav>
+  <main>
+    {% if total == 0 %}
+    <div class="empty">
+      No backfilled cases yet. Populate the store with, e.g.:
+      <p><code>risk-engine backfill --state Pennsylvania --max-records 50 --no-match</code></p>
+    </div>
+    {% else %}
+    <p class="provenance">
+      Descriptive only, over <strong>confirmed exonerations</strong>. Every figure below counts one
+      dimension across cases; none combines a single case into a score or rank (Section 3.1).
+      Flag-vs-label agreement uses <strong>matched cases only</strong> &mdash; gaps are excluded from the
+      denominator, never charged as misses (Section 6.6).
+    </p>
+
+    <div class="cards">
+      <div class="card"><div class="n">{{ total }}</div><div class="l">Confirmed exonerations</div></div>
+      <div class="card"><div class="n">{{ matched_count }}</div><div class="l">Matched to a record</div></div>
+      <div class="card"><div class="n">{{ gap_count }}</div><div class="l">Record gaps (Section 6.6)</div></div>
+    </div>
+
+    <h2>Exonerations by contributing factor (NRE ground truth)</h2>
+    {% if by_category %}
+    {% set cat_max = by_category[0][1] %}
+    <div class="bars">
+      {% for label, n in by_category %}
+      <div class="lab">{{ label }}</div>
+      <div class="bar"><span style="width: {{ (100 * n / cat_max) | round(1) }}%"></span></div>
+      <div class="v">{{ n }}</div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="note">No mapped factors recorded.</p>{% endif %}
+
+    {% if by_unmapped_factor %}
+    <h2>Blind-spot factors the engine cannot check (Section 6.5)</h2>
+    {% set un_max = by_unmapped_factor[0][1] %}
+    <div class="bars">
+      {% for label, n in by_unmapped_factor %}
+      <div class="lab">{{ label }}</div>
+      <div class="bar"><span style="width: {{ (100 * n / un_max) | round(1) }}%; background:#c9a227;"></span></div>
+      <div class="v">{{ n }}</div>
+      {% endfor %}
+    </div>
+    <p class="note">These NRE factors have no schema-checkable counterpart, so the engine is
+      structurally blind to them. Shown so that blindness stays visible.</p>
+    {% endif %}
+
+    {% if by_state %}
+    <h2>Exonerations by state</h2>
+    {% set st_max = by_state[0][1] %}
+    <div class="bars">
+      {% for label, n in by_state %}
+      <div class="lab">{{ label }}</div>
+      <div class="bar"><span style="width: {{ (100 * n / st_max) | round(1) }}%"></span></div>
+      <div class="v">{{ n }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <h2>Per-element flag-vs-label agreement (matched cases only)</h2>
+    {% if agreement %}
+    <table>
+      <thead>
+        <tr><th>Category</th><th class="num">Fired</th><th class="num">Support</th>
+          <th class="num">Precision</th><th class="num">Recall</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        {% for a in agreement %}
+        <tr>
+          <td>{{ a.category }}</td>
+          <td class="num">{{ a.fired }}</td>
+          <td class="num">{{ a.support }}</td>
+          <td class="num">{% if a.precision is none %}&mdash;{% else %}{{ "%.2f"|format(a.precision) }}{% endif %}</td>
+          <td class="num">{% if a.recall is none %}&mdash;{% else %}{{ "%.2f"|format(a.recall) }}{% endif %}</td>
+          <td>{% if a.thin %}<span class="thin">thin support (&lt; {{ thin_support }})</span>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="note">This is the same per-element view calibration learns from: precision is the
+      probability a fired flag of that category is a real NRE factor. It is never combined across
+      categories into a single number.</p>
+    {% else %}
+    <p class="note">No matched cases yet, so there is nothing to compare predictions against.
+      Run <code>risk-engine backfill</code> without <code>--no-match</code> to link court records.</p>
+    {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

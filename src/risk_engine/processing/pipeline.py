@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from ..models import Case
 from .base import ProcessingStep
+from .forensic import ForensicMethodStep
 from .ocr import OCRStep
+from .officials import NamedOfficialStep
 from .tabular import TabularStep
 from .text import TextNormalizationStep
 
@@ -27,7 +29,13 @@ class Pipeline:
         return case
 
 
-def default_pipeline(ocr: bool = True, text: bool = True, tabular: bool = True) -> Pipeline:
+def default_pipeline(
+    ocr: bool = True,
+    text: bool = True,
+    tabular: bool = True,
+    forensic: bool = True,
+    officials: bool = True,
+) -> Pipeline:
     steps: list[ProcessingStep] = []
     if ocr:
         steps.append(OCRStep())
@@ -35,4 +43,8 @@ def default_pipeline(ocr: bool = True, text: bool = True, tabular: bool = True) 
         steps.append(TextNormalizationStep())
     if tabular:
         steps.append(TabularStep())
+    if forensic:
+        steps.append(ForensicMethodStep())
+    if officials:
+        steps.append(NamedOfficialStep())
     return Pipeline(steps)

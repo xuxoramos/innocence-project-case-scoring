@@ -1,69 +1,161 @@
-"""Streamlit UI to navigate cases from acquired → OCR/text → tabular.
+"""FastAPI + Jinja2 + htmx UI for intake flagging (replaces the Streamlit POC).
 
-Lets a reviewer pick a jurisdiction, toggle each (optional) processing step,
-pick a scoring algorithm, and walk the ranked worklist. For every case it shows
-the source documents, OCR/extraction confidence (separately), and the verbatim
-passage behind each flag. No composite "risk score" is ever shown — only a
-relative rank — per README sections 5 and 7.
+A reviewer fills in an intake form, picks an acquisition source, and submits.
+The server structures the intake, runs the Section 5 flow
+(``build_packet_for_intake``), and swaps an HTML packet fragment into the page
+via htmx. There is no score and no rank anywhere: each verifiable element is
+flagged on its own, and missing records are shown as honest gaps (Section 6.6).
 
-Run: streamlit run src/risk_engine/ui/app.py
+Run: ``python -m risk_engine.ui`` (starts uvicorn on http://127.0.0.1:8000).
 """
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
-import streamlit as st  # noqa: E402
-
-from risk_engine.acquisition import get_source, list_sources  # noqa: E402
-from risk_engine.processing import default_pipeline  # noqa: E402
-from risk_engine.scoring import get_scorer, list_scorers  # noqa: E402
-
-SCOPE_NOTE = (
-    "Flagged on pattern similarity to documented exoneration categories. "
-    "This is NOT a determination of innocence; absence of a flag does not "
-    "indicate absence of error. Recall-limited (README §3)."
+from ..acquisition import get_source, list_sources
+from ..calibration import calibrated_pipeline
+from ..intake.structuring import structure_intake
+from ..models import SCOPE_STATEMENT
+from ..retrieval import build_packet_for_intake
+from ..store import CaseStore, THIN_SUPPORT
+from .forms import (
+    APPLICANT_REF_FIELD,
+    CHAPTER_FIELD,
+    SOURCE_FIELD,
+    form_field_groups,
+    packet_view,
+    parse_intake_form,
 )
 
+_HERE = Path(__file__).resolve().parent
+_DEFAULT_SOURCE = "allegheny_pa"  # offline-safe fixture; live sources need a token
 
-def main() -> None:
-    st.set_page_config(page_title="Case Triage POC", layout="wide")
-    st.title("Systemic Risk Profile Flagging Engine — Triage Worklist")
-    st.caption(SCOPE_NOTE)
-
-    jurisdiction = st.sidebar.selectbox("Jurisdiction", list_sources())
-    scorer_name = st.sidebar.selectbox("Scoring algorithm", list_scorers())
-    st.sidebar.markdown("**Processing steps (each optional)**")
-    ocr = st.sidebar.checkbox("OCR", value=True)
-    text = st.sidebar.checkbox("Text normalization", value=True)
-    tabular = st.sidebar.checkbox("Tabular extraction", value=True)
-
-    source = get_source(jurisdiction)
-    pipeline = default_pipeline(ocr=ocr, text=text, tabular=tabular)
-    cases = [pipeline.process(source.fetch(c)) for c in source.discover()]
-    worklist = get_scorer(scorer_name).rank(cases)
-
-    for entry in worklist.entries:
-        c = entry.case
-        with st.expander(f"#{entry.rank} — {c.case_id} ({c.year}, {c.case_type})"):
-            st.write(f"Documents: {len(c.documents)} · tabular: {c.has_tabular}")
-            for doc in c.documents:
-                st.text(f"{doc.doc_id} stage={doc.stage.value} ocr_conf={doc.ocr_confidence}")
-                if doc.normalized_text:
-                    st.code(doc.normalized_text[:500] or "(empty)")
-            if c.flags:
-                st.subheader("Flags")
-                for f in c.flags:
-                    st.markdown(
-                        f"- **{f.category.value}** ({f.basis.value}) "
-                        f"ocr={f.ocr_confidence} extraction={f.extraction_confidence} "
-                        f"— passage: `{f.source_passage}`"
-                    )
-            st.caption(entry.scope_note)
+app = FastAPI(title="Intake Flagging POC")
+app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
+templates = Jinja2Templates(directory=str(_HERE / "templates"))
 
 
-if __name__ == "__main__":  # pragma: no cover
-    main()
+def _source_options() -> list[dict]:
+    options = []
+    for key in list_sources():
+        try:
+            display = get_source(key).display_name or key
+        except KeyError:  # pragma: no cover - registry is consistent
+            display = key
+        options.append({"key": key, "label": display})
+    return options
+
+
+@app.get("/", response_class=HTMLResponse)
+def index(request: Request) -> HTMLResponse:
+    sources = _source_options()
+    default = _DEFAULT_SOURCE if any(s["key"] == _DEFAULT_SOURCE for s in sources) else None
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "scope_statement": SCOPE_STATEMENT,
+            "field_groups": form_field_groups(),
+            "sources": sources,
+            "default_source": default,
+        },
+    )
+
+
+@app.post("/flag", response_class=HTMLResponse)
+async def flag(request: Request) -> HTMLResponse:
+    form = await request.form()
+    raw_fields, meta = parse_intake_form({k: str(v) for k, v in form.items()})
+    source_key = meta.get(SOURCE_FIELD, _DEFAULT_SOURCE)
+    applicant_ref = meta.get(APPLICANT_REF_FIELD, "")
+    chapter = meta.get(CHAPTER_FIELD, "PA")
+
+    intake = structure_intake(raw_fields, chapter=chapter, applicant_ref=applicant_ref)
+    try:
+        # Loads the learned confidence table when present; no-op otherwise.
+        packet = build_packet_for_intake(
+            intake, source_key=source_key, pipeline=calibrated_pipeline()
+        )
+    except Exception as exc:  # surface source/network errors in the fragment
+        return templates.TemplateResponse(
+            request,
+            "_error.html",
+            {"source_key": source_key, "message": str(exc)},
+            status_code=200,
+        )
+
+    return templates.TemplateResponse(
+        request,
+        "_packet.html",
+        {"packet": packet_view(packet)},
+    )
+
+
+@app.get("/cases", response_class=HTMLResponse)
+def cases(
+    request: Request,
+    q: str | None = None,
+    state: str | None = None,
+    factor: str | None = None,
+    matched: str | None = None,
+) -> HTMLResponse:
+    """Browse confirmed exonerations backfilled into the intake schema.
+
+    Read-only and unranked: results come back in stored order with no score or
+    sort-by-likelihood. ``matched`` filters gap vs matched cases (Section 6.6).
+    """
+    store = CaseStore.load()
+    matched_filter = {"yes": True, "no": False}.get((matched or "").lower())
+    results = store.filtered(
+        query=q or None,
+        state=state or None,
+        factor=factor or None,
+        matched=matched_filter,
+    )
+    return templates.TemplateResponse(
+        request,
+        "cases.html",
+        {
+            "scope_statement": SCOPE_STATEMENT,
+            "results": results,
+            "total": len(store),
+            "states": store.states(),
+            "factors": store.factors(),
+            "q": q or "",
+            "selected_state": state or "",
+            "selected_factor": factor or "",
+            "selected_matched": matched or "",
+        },
+    )
+
+
+@app.get("/analytics", response_class=HTMLResponse)
+def analytics(request: Request) -> HTMLResponse:
+    """Descriptive analytics over the backfilled confirmed exonerations.
+
+    Every chart aggregates one dimension across cases (counts by factor, by
+    state) or surfaces the per-element flag-vs-label agreement calibration uses.
+    Nothing here combines a single case into a score or rank (Section 3.1).
+    """
+    store = CaseStore.load()
+    return templates.TemplateResponse(
+        request,
+        "analytics.html",
+        {
+            "scope_statement": SCOPE_STATEMENT,
+            "total": len(store),
+            "matched_count": store.matched_count,
+            "gap_count": store.gap_count,
+            "by_category": store.by_category(),
+            "by_state": store.by_state(),
+            "by_unmapped_factor": store.by_unmapped_factor(),
+            "agreement": store.agreement(),
+            "thin_support": THIN_SUPPORT,
+        },
+    )

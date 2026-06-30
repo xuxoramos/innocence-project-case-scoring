@@ -1,19 +1,40 @@
-# Project Brief: Systemic Risk Profile Flagging Engine
-### A Proof-of-Concept for Wrongful Conviction Case Triage
+# Project Brief: Case Element Flagging & Intake Support Engine
+### A Proof-of-Concept for Innocence Project Case Processing
 
-**Status:** Draft for review
+**Status:** Draft for review (v2 — supersedes case-level scoring approach)
 **Target partner:** Pennsylvania Innocence Project (Pittsburgh / Allegheny County pilot)
 **Document owner:** [Xuxoramos]
 
 ---
 
+## 0. Rationale on pivoting from original version
+
+**Original concept:** Scan historical court archives, score each case on its similarity to past exonerations, and rank cases by likelihood of being a wrongful conviction.
+
+**Why we're moving away from it — three reasons:**
+
+**1. It would have systematically deprioritized the hardest, most neglected cases.**
+A score built on similarity to past exonerations rewards cases that look like past *wins* — overwhelmingly, cases with surviving DNA evidence. Categories of wrongful conviction that are common but slow and difficult to overturn, like false confessions with no physical evidence, would have been quietly ranked lower by design, not by oversight. We'd be optimizing the tool to find the easy cases and bury the hard ones — the opposite of where the organization's effort is most needed.
+
+**2. A single score throws away the information attorneys actually need.**
+Collapsing a case down to "HIGH risk" or a percentage hides exactly the details that matter for a resourcing decision: which specific piece of evidence is questionable, how confident the system is, and why. We're replacing this with individual, standalone flags — a specific forensic method, a specific witness-identification issue, a specific official's documented history — each shown with its own source and context, never combined into one judgment.
+
+**3. We considered a fix for the bias problem that created a worse problem, and rejected it.**
+One option on the table was: find still-incarcerated people whose cases *resemble* past exonerations, and label those cases "likely wrongful" to balance out the training data. We rejected this. It doesn't create independent evidence of anything — it just produces more examples of the same pattern the system already over-weights, with no way to tell a wrongful conviction apart from a correctly decided case that happens to share surface features. Worse, it would mean asserting — with no actual basis — that a specific, real, named person was probably wrongfully convicted. That's not a modeling shortcut; it's a claim about a real person's case that nobody has the standing to make. We're not building anything that does this, in this project or any future version of it.
+
+**What we're building instead:**
+A tool focused on the actual bottleneck — processing the intake questionnaire and pulling matching court records — that flags individual, independently verifiable facts (a discredited forensic method, a documented disciplinary history, a specific evidentiary gap) rather than scoring or ranking the case as a whole. Success is measured by whether the tool helps attorneys see relevant facts faster and more clearly, not by whether any specific case is later overturned — since outcomes like that take years to decades, and since policy change or legal precedent can be a meaningful win even without a reversed conviction.
+
 ## 1. Problem Statement
 
-Innocence Project chapters face a structural intake bottleneck: the volume of plausible wrongful-conviction cases far exceeds the staff hours available to manually review them. Most chapters, including small regional offices, triage almost entirely by inbound referral and attorney availability, not by systematic review of the historical case pool.
+Innocence Project chapters operate a four-stage pipeline: an incarcerated person writes a letter requesting help; the chapter sends an intake questionnaire; the applicant completes it, gathering whatever case records they can obtain from prison clerks or prior counsel; and the chapter screens the resulting material to decide whether to investigate further. The bottleneck is not just volume — it's that screening requires reconstructing and evaluating a case's evidentiary structure from a handwritten questionnaire and a pile of inconsistently organized records, by hand, every time.
 
-This POC proposes a tool that does **not** estimate the probability that a given prisoner is innocent. Instead, it identifies and ranks cases exhibiting **documented structural failure patterns** — the same categories of error the National Registry of Exonerations (NRE) has already catalogued across thousands of confirmed wrongful convictions. The output is a prioritized worklist for human review, not a determination.
+This POC proposes a tool to help at the point where the bottleneck actually lives: **processing the intake questionnaire and the records that accompany it**, not scoring historical archives for likely candidates. It does two things:
 
-This distinction is not just a framing choice. It is the central design constraint of the entire system, and it is treated as binding for every section below.
+1. Converts handwritten/inconsistent intake questionnaires into a structured, readable format, and pulls in matching public court records automatically where available.
+2. Flags individual, specific elements of the case — a forensic method, a witness identification circumstance, a named prosecutor or judge with a documented history — **each on its own**, rather than producing any single judgment about the case as a whole.
+
+This system does not estimate the probability that a given prisoner is innocent, and it does not rank cases by how easy they would be to win. Both of those framings were considered for earlier versions of this concept and rejected — see Section 3 for why.
 
 ---
 
@@ -21,207 +42,227 @@ This distinction is not just a framing choice. It is the central design constrai
 
 | This system **is** | This system **is not** |
 |---|---|
-| A pattern-matching tool against known categories of documented legal error | A predictor of actual innocence |
-| A triage and prioritization aid for scarce attorney time | A determination, legal finding, or evidence |
-| Trained/validated on cases with confirmed exonerations | Trained on a representative sample of wrongful convictions broadly |
-| A way to surface candidates for human investigation | A replacement for human investigation |
+| An intake-processing aid: structuring questionnaires and pulling matching records | A historical-archive scanner that searches for new candidate cases |
+| A way to surface individual, independently-checkable facts about a case | A case-level score, rank, or "ease of winning" estimate |
+| Built so each flag stands alone, with its own source and confidence | A system that produces any single composite judgment about a case |
+| A tool that treats "no flags found" as "no signal," not "no problem" | A tool that asserts innocence, guilt, or likelihood of either |
 
-Every design decision downstream should be traceable to this table. If a proposed feature would blur this line — for example, displaying a single composite score that reads like a probability — it should be rejected or redesigned.
+Every design decision downstream should be traceable to this table. A flag answers one narrow question ("did this case involve hair-microscopy testimony from an analyst whose methodology was later discredited?") and nothing more. It does not, by itself or in combination with other flags, answer "is this case worth taking" — that judgment stays with the attorney.
 
 ---
 
-## 3. Core Methodological Limitation (Read Before Designing Anything Else)
+## 3. Rejected Approaches (Read Before Designing Anything Else)
 
-The system is validated against NRE exoneration data: cases where a conviction was confirmed wrongful and later overturned. This is the best available ground truth, and it is also a **biased sample of wrongful convictions, not a sample of wrongful convictions in general.**
+Two earlier approaches to this system were proposed and discarded during scoping. Both are documented here so the reasoning isn't lost if either is revisited later.
 
-NRE-documented exonerations systematically over-represent cases that had some independent reason to be revisited: surviving biological evidence amenable to modern DNA testing, capital cases with mandatory appellate review, or media/advocacy attention. They under-represent categories of wrongful conviction that are common but structurally harder to overturn — false confessions without physical evidence being the clearest example.
+### 3.1 Rejected: Case-Level "Risk Score"
 
-**Practical consequence:** the model will learn to recognize "the kind of error that, combined with luck, led to a confirmed exoneration." It will not learn to recognize wrongful convictions that lack that paper trail. This is not a bug to be fixed in a later version — it is a permanent property of training on exoneration data, and no amount of additional NRE data resolves it.
+An earlier version of this concept proposed scanning a broad historical case archive and assigning each case a composite "Systemic Risk Profile Score," ranking cases by similarity to known exonerations.
 
-**Binding constraints this creates:**
+**Why this was rejected:**
+- A single composite score collapses exactly the information an attorney needs (which specific facts are at issue, how confidently, from what source) into an opaque number that functions like a probability statement regardless of intended framing.
+- More importantly: ranking by similarity to *successful* exonerations creates a built-in bias toward cases that are easiest to win — typically those with surviving biological evidence for DNA testing. Categories of wrongful conviction that are common but structurally hard to overturn (false confessions without physical evidence, for example) would be systematically deprioritized by design, not by oversight. A scoring system optimized for "looks like a past win" will quietly bury exactly the cases that don't look like past wins, which are disproportionately the hardest and most neglected cases already.
+- Every case has its own evidentiary context; reducing that context to a rank number actively destroys the information needed to make a resourcing decision well.
 
-- The system's stated scope (Section 4) must describe what it can find, not what it is trying to find.
-- All output (Section 7) must be labeled as a recall-limited tool, with an explicit statement of which case types it is structurally blind to.
-- Any future expansion of training data (Section 10) should prioritize sourcing examples of failure modes NRE underrepresents, rather than only adding more NRE cases.
+### 3.2 Rejected: Synthetic Negative Labels via Similarity Matching
+
+A second approach proposed addressing the training-data bias above (Section 3.1) by finding still-incarcerated people whose cases resemble known exonerations on observable features, and labeling those cases as "presumed wrongful conviction" — effectively manufacturing a second class of training examples without requiring an actual exoneration.
+
+**Why this was rejected, and rejected firmly:**
+- This does not produce an independent negative class. It produces *more examples of the same pattern the model already over-weights*, because the matching procedure selects on the same surface features the bias already concentrates on. A case matched this way could be wrongful, or could be a correctly decided case where the matching features happen to coincide with an unrelated, confirmed-guilty outcome — there is no way to tell these apart from feature similarity alone, which is precisely why post-conviction investigation exists and takes years.
+- This is not a data augmentation technique. It is the manufacture of an unverified, externally consequential claim — "this real, named, still-incarcerated person was likely wrongfully convicted" — based on nothing but pattern resemblance, applied to actual people who have not had that determination made by anyone with the standing to make it. Even held entirely internally for model development, this is a labeling practice the project should not adopt: it creates a paper trail asserting something about real cases that the system has no basis to assert, and that kind of trail does not stay contained to a sandbox by design — model artifacts, intermediate datasets, and validation reports get shared, audited, and reused beyond their original intent.
+- It would also produce a validation metric that looks strong but is circular: a test set built from the same similarity logic as the training set will confirm the model finds what it was built to find, telling you nothing about real-world recall.
+
+**What replaced it:** the element-level approach in Section 5, where the unit of analysis is a specific, externally verifiable fact (a forensic method's documented unreliability, a named official's documented disciplinary history) rather than a label asserted about a person's guilt or innocence. See Section 5.2 for how this resolves the same underlying bias problem without the labeling risk.
 
 ---
 
 ## 4. Scope (POC Phase Only)
 
 **In scope:**
-- Single jurisdiction: Allegheny County, Pennsylvania (Pittsburgh)
-- Historic case types: homicide and sexual assault convictions, pre-2000
-- Source material: public court records, transcripts, and dockets already in the public domain
-- Output: a ranked worklist of flagged cases with extracted evidence, for human attorney review only
-- Validation method: recall testing against a held-out set of already-known Allegheny County exonerations
+- Intake questionnaire digitization and structuring: convert handwritten/scanned questionnaires into a consistent structured format
+- A common intake field schema, built by reviewing publicly available intake questionnaires/screening forms across multiple Innocence Network chapters (not just Pennsylvania) to identify the fields that recur across organizations
+- Automated retrieval of matching public court records for a given intake questionnaire, where digitized records exist, limited to Allegheny County, Pennsylvania for the POC
+- Element-level flagging applied to whatever records are retrieved (see Section 5), surfaced individually, never combined into a case-level score
+- Backfilling the structured intake schema using Innocence Project's own published exoneration case data (innocenceproject.org/all-cases), purely to validate that the schema and extraction pipeline correctly populate from real case material — not to train any outcome-prediction model (see Section 5.2)
 
 **Explicitly out of scope for POC:**
-- Any other jurisdiction
-- Any case type outside homicide/sexual assault
-- Any automated outreach (FOIA requests, subpoenas, contact with evidence custodians) — flagged as a future capability only, not built in this phase
-- Any output framed as, or convertible into, a probability or likelihood statement
-- Integration with case management systems before legal/governance review (Section 8) is complete
+- Any case-level score, rank, or composite judgment of any kind
+- Any synthetic labeling of still-incarcerated individuals' cases as likely wrongful (Section 3.2) — permanently out of scope, not just for this phase
+- Any jurisdiction outside Allegheny County
+- Any automated outreach (FOIA requests, subpoenas, contact with evidence custodians)
+- Searching/scanning a historical archive for *new* candidate cases the chapter hasn't received an intake request for — this system processes cases that come in through the existing intake pipeline, it does not go looking for cases on its own
+- Integration with case management systems before legal/governance review (Section 9) is complete
 
 ---
 
 ## 5. System Architecture
 
 ```
-[Public Court Records, Allegheny County] 
+[Incoming Intake Questionnaire — handwritten/scanned]
         │
         ▼
-[OCR + Text Normalization Layer]  ──► confidence score per document
+[OCR + Structuring Layer] ──► confidence score per field
         │
         ▼
-[LLM/NLP Feature Extraction]  ──► confidence score per extracted flag
+[Structured Intake Record] (common schema, Section 5.1)
         │
         ▼
-[Tabular Feature Matrix]
+[Automated Public Record Retrieval] (Allegheny County, where digitized)
         │
         ▼
-[Pattern Matching Against NRE-Derived Failure Categories]
+[Element-Level Extraction] ──► confidence score per element
+        │
+        ├──► [Forensic Method Flags]   (checked against literature/disciplinary record, Section 5.2)
+        ├──► [Named Official Flags]    (checked against disciplinary/misconduct record, Section 5.2)
+        ├──► [Witness/ID Circumstance Flags]
+        └──► [Evidence Preservation Flags]
         │
         ▼
-[Ranked Worklist — NOT a single composite "risk score"]
+[Individual Flags, Each With Source Passage + Confidence — NEVER combined into a score]
         │
         ▼
-[Mandatory Human Review of Source Passage, Not Just Extracted Flag]
+[Structured Case Packet for Attorney Review]
 ```
 
-Two deliberate departures from the original concept, both required by Sections 3 and 6:
+### 5.1 Common Intake Schema
 
-1. **No single composite score.** A unidimensional "HIGH/MEDIUM/LOW" risk label compresses away exactly the information an attorney needs (which flags fired, how confidently, from what source text) and starts to function like a probability statement regardless of intent. The worklist ranks cases but always surfaces the underlying flags and source passages alongside the rank.
-2. **Confidence scoring at two separate layers.** OCR confidence and extraction confidence are tracked and surfaced separately, because a low-confidence OCR read feeding into a high-confidence extraction is a different (and more dangerous) failure mode than the reverse. See Section 6.
+Built from reviewing publicly available intake/screening questionnaires across multiple chapters (Pennsylvania, Texas, New Jersey, Washington, and the Exoneration Project, among others), the recurring field categories are:
 
-### 5.1 Feature Flag Categories
+| Category | Example Fields |
+|---|---|
+| Personal/Background | Name, prisoner number, current facility, conviction jurisdiction and date |
+| Conviction Details | Offense type, county/court of conviction, sentence length, co-defendants |
+| Claim of Innocence | Narrative of events, claimed role (if any), basis for innocence claim |
+| Investigation History | Investigating agency, how applicant became a suspect, other suspects investigated |
+| Trial Record | Trial vs. plea, defense counsel, key prosecution evidence and witnesses |
+| Post-Conviction History | Direct appeal status, habeas petitions filed, prior PCRA/PDR filings |
+| Evidence Availability | What physical/biological evidence exists, its location, whether DNA-testable |
+| Materials on Hand | Which records the applicant already has access to (transcripts, police reports, etc.) |
 
-| Feature Flag Category | Extraction Target | Known Construction Risk |
+This schema is intentionally built from cross-chapter commonalities rather than designed from scratch, since it needs to be recognizable to intake staff at any chapter, not just the pilot site.
+
+### 5.2 Element Flag Categories and Their Data Sources
+
+This is the section that resolves the bias problem from Section 3 without reintroducing the labeling risk from Section 3.2. The key design choice: **every flag category below is checkable against a source that has nothing to do with any individual defendant's guilt or innocence.**
+
+| Flag Category | What Triggers It | Independent Verification Source |
 |---|---|---|
-| Forensic Science Flaws | Hair microscopy, bite-mark matching, arson pour-pattern testimony, named discredited analysts | Generally well-grounded; lower ambiguity in extraction |
-| Witness Reliability | Single-witness convictions with no corroborating physical evidence, low-light/short-exposure identification circumstances | Moderate ambiguity in fact-pattern extraction |
-| Cross-Racial Eyewitness ID | Cross-racial identification combined with single-witness conviction | **High construction risk — see Section 6.4** |
-| Informant Risk | Jailhouse informant testimony tied to a sentence reduction or plea deal | Generally well-grounded |
-| Evidence Preservation | Biological evidence collected but not subjected to STR DNA testing, with evidence locker reference | Depends on chain-of-custody record completeness, which is inconsistent |
+| Discredited Forensic Method | Hair microscopy, bite-mark comparison, arson pour-pattern analysis, or other method named in case record | Forensic science literature, National Academy of Sciences findings, method-specific retraction/critique history — independent of any case outcome |
+| Named Official History | A prosecutor, judge, or forensic analyst named in the case record has documented disciplinary action, misconduct findings, or pattern litigation against them | Public disciplinary records, bar association findings, court opinions naming the official — independent of this specific case |
+| Informant Testimony Circumstance | Jailhouse informant testimony tied to a sentence reduction or plea deal | The case record itself (this is a directly observable fact pattern, not an inference about reliability) |
+| Witness/ID Circumstance | Single-witness conviction, no corroborating physical evidence, identification conditions (lighting, exposure time, cross-racial identification) | The case record itself; cross-racial ID is flagged separately as directly-stated vs. inferred (see Section 6.4) |
+| Evidence Preservation Status | Biological evidence collected but not subjected to modern STR DNA testing | The case record / evidence log itself |
+
+Note what's *not* in this table: nothing here requires comparing the case to a set of confirmed exonerations and measuring similarity. The forensic-method and named-official categories are checkable against records that exist independently of whether this particular defendant is guilty or innocent, which is the property that the rejected approach in Section 3.2 lacked entirely. The remaining categories are directly observable facts about the case record, not inferences about outcome likelihood.
+
+**Remaining limitation, stated plainly:** this resolves the *training-bias* problem but does not make the system complete. A case can be wrongful without tripping any of these flags (e.g., a wrongful conviction resting on a witness or official with no documented history of problems, using a forensic method never formally discredited). The system catches *documented, known* failure patterns. It does not catch — and does not claim to catch — wrongful convictions outside those patterns. This is a narrower, more honest claim than the original system made, and it should stay narrow rather than be expanded to imply broader coverage.
+
+### 5.3 Validation Approach for Innocence Project Case Data
+
+Using the Innocence Project's own published exoneration cases (innocenceproject.org/all-cases) for this POC is appropriate for exactly one purpose: confirming that the schema (5.1) and extraction pipeline (5.2) correctly populate from real intake-style material and real court records. The site already publishes structured per-case metadata — contributing cause of conviction, type of forensic science at issue, race of exoneree/victim, plea status, type of crime — which is useful as a **schema validation check** (does our extraction agree with IP's own published categorization of the same case?), not as outcome-prediction training data.
+
+This is a meaningful distinction and the pipeline should be built to respect it: these cases are used to test "did the system correctly extract and structure what's in the record," never "does the system correctly predict that this kind of case gets exonerated." The moment a use of this data starts resembling the latter, it has drifted back toward the rejected approach in Section 3.1.
 
 ---
 
 ## 6. Known Risks and Required Mitigations
 
-### 6.1 Training/Validation Bias (see Section 3)
-**Mitigation:** Scope and output labeling constraints as specified above. No mitigation eliminates this risk; it is structural.
+### 6.1 Element Flags Are Necessary But Not Sufficient
+**Risk:** Section 5.2 already states this, but it bears repeating as a standing risk rather than a one-time caveat: a clean flag report (nothing triggered) could read to a time-pressed reviewer as "nothing wrong with this case," when it actually means "nothing *matched a known documented pattern*."
 
-### 6.2 Base Rate / Triage Capacity Mismatch
-A flagging system tuned for sensitivity will likely flag a meaningful share of any large historical case pool as worthy of review. Allegheny County's Innocence Project presence is a small staff. If the POC produces hundreds of "high-priority" flags, it is not useful — it has just relocated the bottleneck.
+**Mitigation:** Every case packet, flagged or not, carries the same scope statement (Section 8) stating explicitly that absence of a flag is not evidence of a correctly decided case.
 
-**Mitigation:**
-- The POC must report, before any chapter staff time is committed, the projected flag volume at varying sensitivity thresholds.
-- The ranked worklist (not a binary flag) allows the chapter to set their own review capacity as a cutoff, rather than the system dictating what counts as "high."
-- Success criteria for the POC (Section 9) include flag volume feasibility, not just flag accuracy.
-
-### 6.3 OCR and Extraction Accuracy on Adversarial Source Text
-1980s–90s county records are inconsistently scanned, sometimes handwritten, and inconsistently formatted across courtrooms and stenographers. A single missed negation ("expert testified the comparison was *not* conclusive") inverts a flag's meaning.
+### 6.2 Volume and Capacity Mismatch
+**Risk:** Even without a composite score, if the system surfaces a large number of individually-flagged elements per case, or flags a high proportion of incoming intakes, it adds review burden rather than reducing it for a chapter with limited staff.
 
 **Mitigation:**
-- Every extracted flag carries an OCR-confidence score and an extraction-confidence score, tracked separately.
-- No flag is included in attorney-facing output without the underlying source passage attached, verbatim, for human verification before any action is taken.
-- Below a defined confidence floor (to be set during POC calibration), flags are not surfaced at all rather than surfaced with a low-confidence label — a missed flag is a more recoverable failure than a misleading one at this stage.
+- Flags are organized by category in the case packet (Section 8), not as an undifferentiated list, so a reviewer can scan by flag type.
+- The POC reports flag frequency per intake (how many flags, on average, per processed questionnaire) before any chapter commits review time, so this is a known quantity, not a surprise.
+
+### 6.3 OCR and Extraction Accuracy on Adversarial Source Material
+**Risk:** Handwritten intake questionnaires and older county court records are inconsistently legible and formatted. A missed negation or misread word can invert a flag's meaning (e.g., "comparison was *not* conclusive" read as conclusive).
+
+**Mitigation:**
+- Every extracted field and flag carries an OCR-confidence score and an extraction-confidence score, tracked separately.
+- No flag appears in the attorney-facing case packet without its verbatim source passage attached for human verification.
+- Below a defined confidence floor (set during POC calibration), a flag is withheld rather than shown with a low-confidence label — a missed flag is more recoverable than a misleading one.
 
 ### 6.4 Cross-Racial Eyewitness ID Flag Construction
-This flag category is empirically well-supported in eyewitness identification research, but extracting "cross-racial" from historical court text is itself risky: it generally requires inferring race from sparse, inconsistent transcript language rather than a directly stated fact.
+**Risk:** This flag is empirically well-grounded in eyewitness identification research, but extracting "cross-racial" from case text often requires inference rather than a directly stated fact.
+
+**Mitigation:** This flag is split into **directly stated** and **inferred** sub-categories, with inferred instances never displayed with the same weight, and the basis for the inference shown alongside the flag.
+
+### 6.5 Named-Official Flag Sourcing and Fairness
+**Risk:** Building a "named official has documented history" flag (Section 5.2) means handling individually identifiable claims about real prosecutors, judges, and analysts. Sourcing needs to be limited to verifiable public disciplinary/misconduct records, not informal reputation or unverified allegation, or the flag becomes a liability rather than an asset — both legally (defamation exposure for the chapter) and substantively (an unreliable flag is worse than no flag).
 
 **Mitigation:**
-- This flag is split into two sub-categories with different confidence treatment: **directly stated** (e.g., explicit description in testimony) versus **inferred** (e.g., inferred from other transcript context).
-- Inferred instances are never displayed with the same visual/ranking weight as directly stated ones, and the inference basis is shown alongside the flag.
+- This flag category is sourced exclusively from formal records: bar disciplinary actions, court opinions making findings against the named official, official misconduct findings in published exoneration data, or equivalent formal sources.
+- The flag always cites its specific source record, not a general claim of "history of misconduct."
+- This category is treated as higher-effort and higher-risk than the others in Section 5.2, and should be the first candidate for descoping if POC timeline or sourcing quality is insufficient.
 
-### 6.5 Human-in-the-Loop Labor Cost Is Understated in the Original Concept
-"Intern validation against physical files" undersells the actual difficulty of retrieving 30-year-old evidence logs, chain-of-custody records, and archived transcripts — a slow process that sometimes meets institutional resistance from custodians of the records.
+### 6.6 Public Record Retrieval Coverage Is Uneven
+**Risk:** Digitization and public availability of Allegheny County court records varies by era and record type; automated retrieval will have gaps the system can't fill.
 
-**Mitigation:**
-- The POC's success criteria are decoupled from physical file retrieval. The POC's job is to demonstrate the *flagging pipeline* works against records that are already digitized/public; physical record retrieval is treated as a separate, later-phase capability with its own resourcing question, not an assumed input to this phase.
-- Any future phase that depends on physical record retrieval needs its own feasibility check with the chapter before being added to scope.
+**Mitigation:** The case packet (Section 8) states explicitly which records were searched for and not found, distinct from records that were searched for and returned no relevant flags — these are different states and should never be visually conflated.
 
-### 6.6 Governance Gap: Who Owns a Flag on an Unrepresented Case
-If the system flags a historical case where no attorney-client relationship exists, the system has created information with unclear ownership and unclear duty. There is also downstream legal exposure to consider: a flag could in principle become relevant in litigation about how the organization allocates review resources.
+### 6.7 Governance Gap: Handling of Processed Intake Material
+**Risk:** Even without case-level scoring, the system now handles real, sensitive intake material — a person's account of their own case, often including personal history beyond the legal facts. This needs a clear data-handling policy, including who can access processed intake records and how long they're retained.
 
 **Mitigation — required before any pilot data leaves the POC environment:**
-- A written governance policy, produced jointly with PA Innocence Project leadership and ideally reviewed by counsel, must specify: who receives flags, what retention period applies, whether/how a flag creates any obligation to act, and how flags are documented internally.
-- Until that policy exists, the POC operates in a closed environment with no attorney-facing output distributed beyond the validation team.
+- A written governance policy, produced jointly with PA Innocence Project leadership and reviewed by counsel, specifying access tiers, retention periods, and handling of any flagged named-official information (Section 6.5) given its defamation-sensitivity.
+- Until that policy exists, the POC operates in a closed environment with no output distributed beyond the validation team.
 
-### 6.7 Unconfirmed Staffing Assumption
-The original concept assumes Pittsburgh-based PA Innocence Project staff (housed at Duquesne University's School of Law) will serve as the human validation layer. This has not been confirmed.
+### 6.8 Unconfirmed Staffing and Workflow Fit
+**Risk:** This system assumes intake staff and reviewing attorneys will actually use structured output alongside their existing process. That fit has not been confirmed with the chapter.
 
-**Mitigation:** This brief treats chapter staff availability as a **dependency to be confirmed**, not a given. POC planning (Section 9) proceeds in parallel with — not contingent on — that confirmation, but the pilot review phase cannot begin until it is secured in writing.
-
-### 6.8 False Negative / False Positive Cost Asymmetry
-The system will inevitably miss real wrongful convictions that don't match historical NRE-documented patterns (Section 3), while also raising false positives among cases that match patterns but were correctly decided.
-
-**Mitigation:** The system is explicitly tuned to minimize false negatives among the case types it can see (favoring sensitivity over precision within scope), on the reasoning that a missed case has a much higher human cost than an extra hour of attorney review that turns up nothing. This tradeoff is stated here so it is a documented design decision, not an emergent and unexamined property of the model.
+**Mitigation:** Treated as a dependency to confirm before pilot (Section 9), not a given. The POC can be built and validated against published exoneration case data and sample intake forms without this confirmation, but the pilot phase cannot begin without it.
 
 ---
 
 ## 7. Output Format
 
-Attorney-facing output is a structured case brief, not a black-box score. Required elements per flagged case:
+The deliverable per processed intake is a **structured case packet**, not a score or rank. Required elements:
 
-- Case identifier and jurisdiction/year
-- Each triggered flag, individually, with its sub-category (e.g., directly-stated vs. inferred for 6.4)
-- OCR confidence and extraction confidence for each flag, shown separately
-- The verbatim source passage supporting each flag
-- A relative rank within the current worklist batch — **never** a standalone composite score
-- An explicit statement of scope limitation: "This case was flagged based on pattern similarity to documented exoneration categories. This is not a determination of innocence, and the absence of a flag does not indicate the absence of error."
+- Structured intake summary (the questionnaire content, organized into the common schema from Section 5.1, in readable form)
+- Matched public records found, and explicitly, which expected record types were searched for but not found (Section 6.6)
+- Each triggered flag, shown individually, grouped by category (forensic method / named official / witness-ID circumstance / evidence preservation), never combined into a single score
+- For each flag: its sub-category where applicable (directly-stated vs. inferred, Section 6.4), its source passage or record, and its confidence score
+- A standing scope statement on every packet, flagged or not: *"This packet structures available intake and case record information and flags elements matching documented categories of legal/forensic/procedural concern. It does not assess guilt, innocence, or likelihood of success on appeal. The absence of a flag does not indicate the absence of a problem with the case."*
 
 ---
 
 ## 8. Required Pre-Pilot Approvals
 
-Before any case data leaves the validation environment in attorney-facing form:
+Before any processed intake data leaves the validation environment in attorney-facing form:
 
-1. Governance policy on flag ownership, retention, and duty to act (Section 6.6) — drafted with PA Innocence Project leadership, reviewed by counsel
-2. Written confirmation of Pittsburgh chapter staff availability for the human review layer (Section 6.7)
-3. Sign-off from chapter leadership on the projected flag-volume estimate (Section 6.2) as feasible given current staffing
+1. Governance policy on intake data handling, access, retention, and named-official flag liability (Section 6.7) — drafted with PA Innocence Project leadership, reviewed by counsel
+2. Confirmation that the case packet format fits the chapter's actual intake/screening workflow (Section 6.8)
+3. Confirmation of sourcing standards for the named-official flag category (Section 6.5) as sufficiently rigorous to avoid defamation or reliability risk
 
 ---
 
 ## 9. Success Criteria for POC
 
-The POC is successful if, and only if, it demonstrates **all** of the following — accuracy alone is not sufficient:
+The POC is successful if it demonstrates **all** of the following:
 
-1. **Recall on known cases:** the pipeline correctly flags a high proportion of already-confirmed Allegheny County exonerations in the pre-2000 homicide/sexual assault pool.
-2. **Feasible flag volume:** the projected number of "review-worthy" flags at the chosen sensitivity threshold is realistic against actual chapter review capacity (a number, not an assumption).
-3. **Confidence calibration:** OCR and extraction confidence scores meaningfully track actual error rates on a manually audited sample, rather than being uniformly high or uninformative.
-4. **No misleading single-score behavior:** output review confirms the worklist format does not collapse into something attorneys read as a probability statement.
-5. **Governance and staffing dependencies resolved** (Section 8) before any case-level data is shared outside the validation team.
+1. **Schema fidelity:** the structuring pipeline correctly converts a representative sample of intake-style material (including IP's own published case narratives, per Section 5.3) into the common schema without losing or distorting case-relevant content.
+2. **Flag precision on verifiable sources:** forensic-method and named-official flags (Section 5.2) are checked against their cited independent source and confirmed accurate on a manually audited sample — not validated by similarity to past exonerations.
+3. **Manageable flag volume:** average flags-per-intake is reported and assessed against actual chapter review capacity, not assumed.
+4. **No case-level score leakage:** output review confirms no part of the packet collapses into anything a reviewer would read as a composite judgment.
+5. **Governance and workflow-fit dependencies resolved** (Section 8) before any output is shared outside the validation team.
+
+Consistent with the broader reframe of this project, **the POC's success is not measured by whether any flagged case is later overturned.** A useful intake-processing tool, and a defensible flag, both stand on their own regardless of any individual case's eventual outcome — and outcomes of this kind take years to decades to materialize, far outside any POC evaluation window. Likewise, the chapter's eventual definition of "success" for cases it does take on may reasonably include outcomes other than a reversed conviction — a changed evidentiary standard, a policy reform, or a precedent that helps a different case — and this system's job is to support that broader work, not to predict or chase a narrower outcome metric.
 
 ---
 
 ## 10. Open Questions for Next Phase (Not POC Scope)
 
-- How should the system handle case types this POC excludes (non-homicide, non-sexual-assault, post-2000)?
-- Can additional training signal for underrepresented failure modes (e.g., false-confession cases without DNA exoneration) be sourced from sources other than NRE, to partially offset the bias in Section 3? This is a research question, not a planned feature.
-- What does a responsible automated-outreach capability (FOIA/subpoena drafting) look like, and does it belong in this system at all, or in a separate tool gated by its own governance review?
-- What is the realistic path to expanding beyond a single jurisdiction, and does the "bad actor clustering" effect (same detective/prosecutor/lab tech across multiple cases) justify prioritizing adjacent jurisdictions where those same individuals may have worked?
+- Should the named-official flag category (Section 5.2, 6.5) be built as a shared, cross-chapter resource (a registry of disciplinary records relevant to wrongful conviction work generally), given that the same prosecutors, judges, and analysts often appear across multiple cases and even multiple jurisdictions?
+- What does responsible automated public-records outreach (FOIA/subpoena drafting) look like, and should it live in this system or a separately governed tool?
+- What is the realistic path to expanding intake processing beyond Allegheny County, given that public record retrieval coverage (Section 6.6) will vary significantly by jurisdiction?
+- Is there a legitimate, non-circular way to estimate how many incoming intakes *don't* trip any flag but still warrant investigation — i.e., a way to size the system's blind spot (Section 5.2's stated limitation) without resorting to the rejected approach in Section 3.2?
 
 ---
 
-*This brief treats Sections 3 and 6 as binding constraints on every other section, not as caveats appended after the fact. Any future revision that changes scope, output format, or success criteria should be checked against those sections before being adopted.*
-
----
-
-## 11. Repository Scaffold (POC)
-
-The codebase mirrors the pipeline in Section 5, with every processing step
-optional so already-digitized cases can skip OCR/text/tabular extraction:
-
-```
-src/risk_engine/
-  models.py            Domain types: Case, Document, Flag (separate OCR/extraction confidence), Worklist
-  config.py            Confidence floor + paths
-  acquisition/         Multi-jurisdiction sources (registry). Pittsburgh = allegheny_pa; add small cities here
-  processing/          Optional, composable steps: OCR → text → tabular (pipeline runs only what applies)
-  scoring/             Swappable ranking algorithms (registry) to A/B test learning models; baseline = flag_count
-  ui/app.py            Streamlit UI: navigate acquired → OCR/text → tabular, with flags, confidences, source passages, relative rank only
-  cli.py               Wires acquisition → processing → scoring
-tests/                 End-to-end + unit tests
-```
-
-Run: `pip install -e .[dev]` then `pytest`. CLI: `risk-engine --jurisdiction allegheny_pa --scorer flag_count`. UI: `pip install -e .[ui]` then `streamlit run src/risk_engine/ui/app.py`.
+*This brief treats Section 3 (rejected approaches) as a permanent record, not a historical footnote — any future proposal resembling either rejected approach should be checked against the reasoning here before being reconsidered. Sections 5.2 and 6 are treated as binding constraints on every other section.*

@@ -1,0 +1,80 @@
+{# Packet fragment swapped in by htmx. No score, no rank: elements stand alone. #}
+<style>
+  .packet h2 { font-size: 1.05rem; margin: 0 0 .25rem; }
+  .packet h3 { font-size: .9rem; margin: 1.2rem 0 .4rem; text-transform: uppercase; letter-spacing: .03em; color: #444; }
+  .packet .scope { font-size: .8rem; color: #555; border-left: 3px solid #102a43; padding-left: .6rem; margin: .5rem 0 1rem; }
+  .records { list-style: none; padding: 0; margin: 0; }
+  .records li { display: flex; gap: .6rem; align-items: baseline; padding: .35rem 0; border-bottom: 1px solid #eee; }
+  .badge { font-size: .72rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px; white-space: nowrap; }
+  .badge.found-flags { background: #ffe0b2; color: #b00020; }
+  .badge.found-clean { background: #cfd8dc; color: #455a64; }
+  .badge.not-found { background: #fdecea; color: #b00020; border: 1px solid #b00020; }
+  .rec-type { font-weight: 600; }
+  .rec-detail { color: #666; font-size: .82rem; }
+  .flag-group { border: 1px solid #e0e0e0; border-radius: 6px; margin: 0 0 .8rem; padding: .6rem .9rem; }
+  .flag-group > strong { color: #b00020; }
+  .flag { border-top: 1px dashed #e0e0e0; padding: .5rem 0; }
+  .flag:first-of-type { border-top: 0; }
+  .flag .meta { font-size: .76rem; color: #555; }
+  .flag .passage { background: #f7f7f7; border-radius: 4px; padding: .35rem .5rem; font-family: ui-monospace, monospace; font-size: .8rem; margin: .3rem 0; }
+  .inferred { font-style: italic; }
+  .intake-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .intake-table td { padding: .25rem .4rem; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+  .intake-table td:first-child { color: #555; width: 40%; }
+  .missing { color: #b00020; font-size: .8rem; }
+  .noflags { color: #455a64; }
+</style>
+
+<div class="packet">
+  <h2>Case packet &mdash; {{ packet.case_id }}</h2>
+  <p class="scope">{{ packet.scope_statement }}</p>
+
+  {% if packet.intake_groups %}
+  <h3>Intake</h3>
+  {% for group in packet.intake_groups %}
+  <strong>{{ group.label }}</strong>
+  <table class="intake-table">
+    {% for f in group.fields %}
+    <tr><td>{{ f.label }}</td><td>{{ f.value }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endfor %}
+  {% if packet.missing_near_universal %}
+  <p class="missing">Missing near-universal fields: {{ packet.missing_near_universal | join(", ") }}</p>
+  {% endif %}
+  {% endif %}
+
+  <h3>Record searches</h3>
+  <ul class="records">
+    {% for r in packet.records %}
+    <li>
+      <span class="badge {{ r.status_class }}">{{ r.status_label }}</span>
+      <span class="rec-type">{{ r.record_type }}</span>
+      {% if r.detail %}<span class="rec-detail">{{ r.detail }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+
+  <h3>Flagged elements ({{ packet.total_flags }})</h3>
+  {% if packet.has_flags %}
+  {% for group in packet.flag_groups %}
+  <div class="flag-group">
+    <strong>{{ group.label }}</strong>
+    {% for f in group.flags %}
+    <div class="flag">
+      <div class="meta">
+        basis: <span class="{% if f.inferred %}inferred{% endif %}">{{ f.basis }}</span>
+        &middot; extraction: {{ f.extraction_confidence }}
+        &middot; OCR: {{ f.ocr_confidence }}
+        {% if f.verification_source %}&middot; verify: {{ f.verification_source }}{% endif %}
+      </div>
+      <div class="passage">{{ f.source_passage }}</div>
+      {% if f.inference_note %}<div class="meta">note: {{ f.inference_note }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% else %}
+  <p class="noflags">No elements flagged. This is not an exoneration assessment &mdash; absence of flags only means none of the checked elements were present in the retrieved records.</p>
+  {% endif %}
+</div>
