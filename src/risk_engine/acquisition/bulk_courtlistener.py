@@ -113,6 +113,86 @@ def _first(row: dict, fields: Iterable[str]) -> str:
     return ""
 
 
+#: Rows per pandas chunk. Cluster rows are tiny (a caption + a date); opinion
+#: rows carry full-text columns, so they get a much smaller chunk to bound peak
+#: memory on a small box (a few MB-per-row * chunksize).
+_CLUSTER_CHUNK = 200_000
+_OPINION_CHUNK = 5_000
+
+
+def _pandas_or_none():
+    """Return the ``pandas`` module if installed, else ``None``.
+
+    pandas is an optional accelerator (``pip install -e .[acquisition]``). Its C
+    CSV parser with ``usecols`` is an order of magnitude faster than the stdlib
+    :class:`csv.DictReader`, because it only builds Python objects for the handful
+    of columns we keep — not all ~30 columns (several of them full-opinion text)
+    of every row. When absent we transparently fall back to the stdlib reader.
+    """
+    try:
+        import pandas as pd
+    except ImportError:  # pragma: no cover - exercised only without the extra
+        return None
+    return pd
+
+
+def _pd_compression(path: str | Path) -> str:
+    name = str(path).lower()
+    if name.endswith(".bz2"):
+        return "bz2"
+    if name.endswith(".gz"):
+        return "gzip"
+    return "infer"
+
+
+def _iter_rows(
+    path: str | Path,
+    wanted: set[str],
+    *,
+    chunksize: int,
+    heartbeat: Callable[[int], None] | None = None,
+) -> Iterator[dict]:
+    """Yield ``{column: value}`` dicts for ``wanted`` columns, fast.
+
+    Uses pandas' C parser (projecting only ``wanted``) when available, otherwise
+    the stdlib :class:`csv.DictReader`. ``heartbeat(rows_seen)`` is called
+    periodically so long streaming passes report progress instead of going dark.
+    """
+    pd = _pandas_or_none()
+    if pd is None:
+        with _open_text(path) as stream:
+            seen = 0
+            for row in _reader(stream):
+                yield row
+                seen += 1
+                if heartbeat is not None and seen % 200_000 == 0:
+                    heartbeat(seen)
+        return
+
+    seen = 0
+    chunks = pd.read_csv(
+        path,
+        usecols=lambda c: c in wanted,
+        dtype=str,
+        na_filter=False,  # keep empty cells as "" rather than NaN
+        engine="c",
+        compression=_pd_compression(path),
+        chunksize=chunksize,
+        quotechar='"',
+        doublequote=False,
+        escapechar="\\",  # PostgreSQL COPY uses ESCAPE '\'
+        on_bad_lines="skip",
+    )
+    for chunk in chunks:
+        cols = {name: chunk[name].tolist() for name in chunk.columns}
+        n = len(chunk)
+        for i in range(n):
+            yield {name: values[i] for name, values in cols.items()}
+        seen += n
+        if heartbeat is not None:
+            heartbeat(seen)
+
+
 @dataclass(slots=True)
 class ClusterRecord:
     """The few opinion-cluster fields the offline join needs."""
@@ -136,19 +216,23 @@ class ClusterRecord:
 
 def iter_cluster_records(path: str | Path) -> Iterator[ClusterRecord]:
     """Stream :class:`ClusterRecord` rows from an ``opinion-clusters`` snapshot."""
-    with _open_text(path) as stream:
-        for row in _reader(stream):
-            cluster_id = (row.get("id") or "").strip()
-            if not cluster_id:
-                continue
-            name = _first(row, _CLUSTER_NAME_FIELDS).strip()
-            if not name:
-                continue
-            yield ClusterRecord(
-                cluster_id=cluster_id,
-                case_name=name,
-                year=_year_from(row.get("date_filed")),
-            )
+    wanted = set(_CLUSTER_NAME_FIELDS) | {"id", "date_filed"}
+
+    def _hb(seen: int) -> None:
+        print(f"[clusters] scanned {seen:,} rows", file=sys.stderr, flush=True)
+
+    for row in _iter_rows(path, wanted, chunksize=_CLUSTER_CHUNK, heartbeat=_hb):
+        cluster_id = (row.get("id") or "").strip()
+        if not cluster_id:
+            continue
+        name = _first(row, _CLUSTER_NAME_FIELDS).strip()
+        if not name:
+            continue
+        yield ClusterRecord(
+            cluster_id=cluster_id,
+            case_name=name,
+            year=_year_from(row.get("date_filed")),
+        )
 
 
 class BulkCourtListenerMatcher:
@@ -221,29 +305,37 @@ class BulkCourtListenerMatcher:
         """
         if not self.opinions_path or not cases_by_cluster:
             return 0
+        wanted = {"id", "cluster_id"} | set(_OPINION_TEXT_FIELDS)
         attached = 0
-        with _open_text(self.opinions_path) as stream:
-            for row in _reader(stream):
-                cluster_id = (row.get("cluster_id") or "").strip()
-                case = cases_by_cluster.get(cluster_id)
-                if case is None:
-                    continue
-                text = _first(row, _OPINION_TEXT_FIELDS)
-                if not text:
-                    continue
-                opinion_id = (row.get("id") or "").strip()
-                case.documents.append(
-                    Document(
-                        doc_id=f"{case.case_id}-OP{opinion_id}",
-                        case_id=case.case_id,
-                        source_uri=f"https://www.courtlistener.com/opinions/{opinion_id}/",
-                        media_type="text/plain",
-                        needs_ocr=False,  # bulk opinions are already digital text
-                        normalized_text=text,
-                        metadata={"cluster_id": cluster_id},
-                    )
+
+        def _hb(seen: int) -> None:
+            print(
+                f"[attach_text] scanned {seen:,} opinions, attached {attached} docs",
+                file=sys.stderr,
+                flush=True,
+            )
+
+        for row in _iter_rows(self.opinions_path, wanted, chunksize=_OPINION_CHUNK, heartbeat=_hb):
+            cluster_id = (row.get("cluster_id") or "").strip()
+            case = cases_by_cluster.get(cluster_id)
+            if case is None:
+                continue
+            text = _first(row, _OPINION_TEXT_FIELDS)
+            if not text:
+                continue
+            opinion_id = (row.get("id") or "").strip()
+            case.documents.append(
+                Document(
+                    doc_id=f"{case.case_id}-OP{opinion_id}",
+                    case_id=case.case_id,
+                    source_uri=f"https://www.courtlistener.com/opinions/{opinion_id}/",
+                    media_type="text/plain",
+                    needs_ocr=False,  # bulk opinions are already digital text
+                    normalized_text=text,
+                    metadata={"cluster_id": cluster_id},
                 )
-                attached += 1
+            )
+            attached += 1
         return attached
 
 

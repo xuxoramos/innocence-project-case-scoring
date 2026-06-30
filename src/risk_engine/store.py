@@ -326,6 +326,7 @@ def backfill_store_bulk(
     ]
 
     matcher = BulkCourtListenerMatcher(clusters_path, opinions_path=opinions_path)
+    print(f"[bulk] indexing clusters for {len(pending)} pending records", file=sys.stderr, flush=True)
     matcher.build_index(surname_token(record.name) for _, record in pending)
 
     matches: dict[str, object] = {}
@@ -336,7 +337,16 @@ def backfill_store_bulk(
         if candidate is not None:
             cluster_id = candidate.case.features["_cl_cluster_id"]
             cases_by_cluster[cluster_id] = candidate.case
+    # The surname index (potentially ~1 GB) is no longer needed; free it before
+    # the memory-heavy opinion-text pass so a small box keeps headroom.
+    matcher._index.clear()
+    print(
+        f"[bulk] matched {len(cases_by_cluster)} clusters; resolving opinion text",
+        file=sys.stderr,
+        flush=True,
+    )
     matcher.attach_text(cases_by_cluster)  # type: ignore[arg-type]
+    print("[bulk] text resolved; writing case store", file=sys.stderr, flush=True)
 
     for done, record in enumerate(records, 1):
         key = _key(done, record)
