@@ -280,6 +280,81 @@ def backfill_store(
     return list(by_id.values())
 
 
+def backfill_store_bulk(
+    records: Iterable[ExonerationRecord],
+    *,
+    clusters_path: str | Path,
+    opinions_path: str | Path | None = None,
+    path: str | Path = DEFAULT_CASE_STORE_PATH,
+    pipeline: Pipeline | None = None,
+    resume: bool = True,
+    progress: ProgressFn | None = _default_progress,
+) -> list[StoredCase]:
+    """Backfill exonerations from **offline CourtListener bulk snapshots**.
+
+    The matched twin of :func:`backfill_store` that never touches the API: it
+    joins each exoneration to an ``opinion-clusters`` snapshot by name+year (same
+    scorer as the live flow) and attaches ``plain_text`` from the ``opinions``
+    snapshot for matches only. Because there is no per-record request, the whole
+    set is linked in two streaming passes rather than thousands of throttled
+    calls. Persistence and resume semantics match :func:`backfill_store`: rows are
+    rewritten after every record (atomic), already-matched rows are kept and
+    skipped, and existing gap rows are retried in case the snapshot now links them.
+    A match here means exactly what an API match means — both assemble through
+    :func:`risk_engine.dataset.labeled_example_from_candidate`.
+    """
+    from .acquisition import BulkCourtListenerMatcher
+    from .dataset import criteria_from_exoneration, labeled_example_from_candidate
+    from .retrieval import surname_token
+
+    records = list(records)
+    total = len(records)
+    path = Path(path)
+    by_id: dict[str, StoredCase] = (
+        {case.nre_id: case for case in load_cases(path)} if resume else {}
+    )
+
+    def _key(done: int, record: ExonerationRecord) -> str:
+        return record.nre_id or f"_row_{done}"
+
+    # Work only the records still needing a match (skip already-matched rows), so
+    # the surname index and the opinion-text pass stay bounded to what is pending.
+    pending = [
+        (key, record)
+        for done, record in enumerate(records, 1)
+        if (key := _key(done, record)) and not (by_id.get(key) and by_id[key].matched)
+    ]
+
+    matcher = BulkCourtListenerMatcher(clusters_path, opinions_path=opinions_path)
+    matcher.build_index(surname_token(record.name) for _, record in pending)
+
+    matches: dict[str, object] = {}
+    cases_by_cluster: dict[str, object] = {}
+    for key, record in pending:
+        candidate = matcher.best_match(criteria_from_exoneration(record))
+        matches[key] = candidate
+        if candidate is not None:
+            cluster_id = candidate.case.features["_cl_cluster_id"]
+            cases_by_cluster[cluster_id] = candidate.case
+    matcher.attach_text(cases_by_cluster)  # type: ignore[arg-type]
+
+    for done, record in enumerate(records, 1):
+        key = _key(done, record)
+        prior = by_id.get(key)
+        if prior is not None and prior.matched:
+            if progress is not None:
+                progress(done, total, "cached", prior)
+            continue
+        case = stored_from_example(
+            labeled_example_from_candidate(record, matches.get(key), pipeline=pipeline)  # type: ignore[arg-type]
+        )
+        by_id[key] = case
+        save_cases(by_id.values(), path)
+        if progress is not None:
+            progress(done, total, "matched" if case.matched else "gap", case)
+    return list(by_id.values())
+
+
 @dataclass(frozen=True)
 class CategoryAgreement:
     """Per-category flag-vs-label agreement over *matched* cases only (§6.6)."""

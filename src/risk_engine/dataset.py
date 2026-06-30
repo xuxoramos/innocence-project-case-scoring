@@ -160,18 +160,42 @@ def build_labeled_example(
     if match:
         candidate = match_exoneration(record, source_key=source_key, limit=limit)
         if candidate is not None:
-            pipeline = pipeline or default_pipeline()
             source = get_source(source_key)
-            processed = pipeline.process(source.fetch(candidate.case))
             candidate = CandidateMatch(
-                case=processed,
+                case=source.fetch(candidate.case),
                 name_score=candidate.name_score,
                 year_consistent=candidate.year_consistent,
             )
+    return labeled_example_from_candidate(record, candidate, pipeline=pipeline)
+
+
+def labeled_example_from_candidate(
+    record: ExonerationRecord,
+    candidate: CandidateMatch | None,
+    *,
+    pipeline: Pipeline | None = None,
+) -> LabeledExample:
+    """Assemble a labeled example from an *already-matched* candidate (or a gap).
+
+    ``candidate`` must already carry its documents (the API path fetches them; the
+    offline bulk path attaches them from the snapshot) — this runs ``pipeline`` on
+    that case to record predicted flags, back-fills the intake, and attaches the
+    NRE labels. ``candidate=None`` produces a gap row (no predictions, §6.6). This
+    is the shared assembly step behind both the API and bulk backfills, so a match
+    means the same thing regardless of how it was found.
+    """
+    final: CandidateMatch | None = None
+    if candidate is not None:
+        pipeline = pipeline or default_pipeline()
+        final = CandidateMatch(
+            case=pipeline.process(candidate.case),
+            name_score=candidate.name_score,
+            year_consistent=candidate.year_consistent,
+        )
     return LabeledExample(
         exoneration=record,
         intake=intake_from_exoneration(record, applicant_ref=record.nre_id or None),
-        match=candidate,
+        match=final,
         labels=record.categories(),
         unmapped_factors={f for f in record.factors if f in NRE_UNMAPPED_FACTOR_COLUMNS},
     )

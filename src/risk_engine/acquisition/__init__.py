@@ -6,6 +6,12 @@ County (Pittsburgh) source; others can be plugged in immediately.
 """
 
 from .base import AcquisitionSource, get_source, list_sources, register_source
+from .bulk_courtlistener import (
+    DEFAULT_BULK_DIR,
+    BulkCourtListenerMatcher,
+    download_bulk_snapshots,
+    resolve_latest_snapshot,
+)
 from .courtlistener import PA_APPELLATE_COURTS, CourtListenerSource
 from .pittsburgh import AlleghenyCountySource
 
@@ -17,4 +23,8 @@ __all__ = [
     "AlleghenyCountySource",
     "CourtListenerSource",
     "PA_APPELLATE_COURTS",
+    "BulkCourtListenerMatcher",
+    "download_bulk_snapshots",
+    "resolve_latest_snapshot",
+    "DEFAULT_BULK_DIR",
 ]

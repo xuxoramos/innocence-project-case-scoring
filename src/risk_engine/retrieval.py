@@ -127,6 +127,27 @@ def case_display_name(case: Case) -> str:
     return str(case.features.get("_cl_case_name", "") or "")
 
 
+def identity_tokens(name: str) -> list[str]:
+    """Distinctive name tokens (length >= 3, stopwords dropped), in order.
+
+    The single source of truth for "which words in a name/caption carry
+    identity," shared by :func:`name_score` and the offline bulk matcher so both
+    tokenize captions identically.
+    """
+    return [t for t in _normalize(name).split() if len(t) >= 3 and t not in _STOPWORDS]
+
+
+def surname_token(name: str) -> str | None:
+    """The applicant's dominant identity token (their last distinctive word).
+
+    This is the primary signal :func:`name_score` keys on, and the key the bulk
+    matcher uses to index/look up candidate captions. ``None`` when the name has
+    no usable token (so the caller records a gap rather than guessing).
+    """
+    tokens = identity_tokens(name)
+    return tokens[-1] if tokens else None
+
+
 def name_score(applicant: str, candidate: str) -> float:
     """How strongly an applicant name matches a candidate case caption (0..1).
 
@@ -140,8 +161,8 @@ def name_score(applicant: str, candidate: str) -> float:
     c = _normalize(candidate)
     if not a or not c:
         return 0.0
-    a_tokens = [t for t in a.split() if len(t) >= 3 and t not in _STOPWORDS]
-    c_tokens = {t for t in c.split() if len(t) >= 3 and t not in _STOPWORDS}
+    a_tokens = identity_tokens(applicant)
+    c_tokens = set(identity_tokens(candidate))
     ratio = difflib.SequenceMatcher(None, a, c).ratio()
     if not a_tokens or not c_tokens:
         return ratio

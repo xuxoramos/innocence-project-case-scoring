@@ -31,8 +31,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
-from .acquisition import list_sources
+from .acquisition import (
+    DEFAULT_BULK_DIR,
+    download_bulk_snapshots,
+    list_sources,
+    resolve_latest_snapshot,
+)
+from .acquisition.bulk_courtlistener import CLUSTERS_STEM, OPINIONS_STEM
 from .calibration import (
     DEFAULT_CALIBRATION_PATH,
     calibrated_pipeline,
@@ -44,7 +51,7 @@ from .intake.structuring import structure_intake
 from .labels import load_known_exonerations
 from .models import FlagCategory
 from .retrieval import build_packet_for_intake
-from .store import DEFAULT_CASE_STORE_PATH, CaseStore, backfill_store
+from .store import DEFAULT_CASE_STORE_PATH, CaseStore, backfill_store, backfill_store_bulk
 
 
 def run_intake(
@@ -149,24 +156,42 @@ def run_backfill(
     match: bool,
     out: str,
     resume: bool,
+    bulk: bool = False,
+    bulk_dir: str | None = None,
+    bulk_clusters: str | None = None,
+    bulk_opinions: str | None = None,
 ) -> str:
     """Backfill confirmed exonerations into the browse store and report counts.
 
     Persists after every record and (with ``resume``) skips cases already linked,
-    so a killed run resumes where it left off. Per-record progress is logged to
-    stderr; this summary line goes to stdout.
+    so a killed run resumes where it left off. With ``--bulk`` the court-record
+    link comes from offline CourtListener snapshots (no API, no rate limit)
+    instead of per-record lookups. Per-record progress is logged to stderr; this
+    summary line goes to stdout.
     """
     records = load_known_exonerations(state=state, county=county)
     if max_records is not None:
         records = records[:max_records]
-    cases = backfill_store(
-        records,
-        path=out,
-        match=match,
-        source_key=source_key,
-        match_limit=match_limit,
-        resume=resume,
-    )
+    if bulk:
+        clusters_path, opinions_path = _resolve_bulk_paths(
+            bulk_dir, bulk_clusters, bulk_opinions
+        )
+        cases = backfill_store_bulk(
+            records,
+            clusters_path=clusters_path,
+            opinions_path=opinions_path,
+            path=out,
+            resume=resume,
+        )
+    else:
+        cases = backfill_store(
+            records,
+            path=out,
+            match=match,
+            source_key=source_key,
+            match_limit=match_limit,
+            resume=resume,
+        )
     matched = sum(1 for c in cases if c.matched)
     gaps = len(cases) - matched
     return (
@@ -174,6 +199,40 @@ def run_backfill(
         f"{matched} matched to a court record, {gaps} gap(s) "
         f"(no matching record; §6.6 — not a detector miss)."
     )
+
+
+def _resolve_bulk_paths(
+    bulk_dir: str | None,
+    bulk_clusters: str | None,
+    bulk_opinions: str | None,
+) -> tuple[str, str | None]:
+    """Locate the cluster (required) and opinion (optional) snapshots for --bulk.
+
+    Explicit ``--bulk-clusters/--bulk-opinions`` win; otherwise the newest dated
+    snapshot in ``--bulk-dir`` is used. A missing cluster snapshot is a hard error
+    pointing at ``bulk-download``.
+    """
+    directory = bulk_dir or str(DEFAULT_BULK_DIR)
+    clusters = bulk_clusters or (
+        str(p) if (p := resolve_latest_snapshot(directory, CLUSTERS_STEM)) else None
+    )
+    if clusters is None:
+        raise SystemExit(
+            f"No '{CLUSTERS_STEM}-*' snapshot found in {directory}. "
+            "Fetch one first:  risk-engine bulk-download --dir " + directory
+        )
+    opinions = bulk_opinions or (
+        str(p) if (p := resolve_latest_snapshot(directory, OPINIONS_STEM)) else None
+    )
+    return clusters, opinions
+
+
+def run_bulk_download(directory: str) -> str:
+    """Download the latest CourtListener bulk snapshots used by --bulk."""
+    paths = download_bulk_snapshots(directory, progress=lambda m: print(m, file=sys.stderr))
+    listing = ", ".join(f"{stem}={path.name}" for stem, path in paths.items())
+    return f"Downloaded bulk snapshots into {directory}: {listing}"
+
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -236,6 +295,34 @@ def main(argv: list[str] | None = None) -> int:
         action="store_false",
         help="reprocess every record instead of skipping cases already in the store",
     )
+    bf.add_argument(
+        "--bulk",
+        action="store_true",
+        help="link court records from offline CourtListener bulk snapshots (no API/rate limit)",
+    )
+    bf.add_argument(
+        "--bulk-dir",
+        default=None,
+        help=f"directory holding bulk snapshots (default {DEFAULT_BULK_DIR})",
+    )
+    bf.add_argument(
+        "--bulk-clusters",
+        default=None,
+        help="explicit opinion-clusters snapshot (overrides --bulk-dir lookup)",
+    )
+    bf.add_argument(
+        "--bulk-opinions",
+        default=None,
+        help="explicit opinions snapshot for text (overrides --bulk-dir lookup)",
+    )
+
+    dl = sub.add_parser("bulk-download", help="download the latest CourtListener bulk snapshots")
+    dl.add_argument(
+        "--dir",
+        dest="bulk_dir",
+        default=str(DEFAULT_BULK_DIR),
+        help=f"where to store snapshots (default {DEFAULT_BULK_DIR})",
+    )
 
     args = p.parse_args(argv)
     if args.command == "intake":
@@ -274,8 +361,14 @@ def main(argv: list[str] | None = None) -> int:
                 match=args.match,
                 out=args.out,
                 resume=args.resume,
+                bulk=args.bulk,
+                bulk_dir=args.bulk_dir,
+                bulk_clusters=args.bulk_clusters,
+                bulk_opinions=args.bulk_opinions,
             )
         )
+    elif args.command == "bulk-download":
+        print(run_bulk_download(args.bulk_dir))
     return 0
 
 
