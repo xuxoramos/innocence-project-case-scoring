@@ -359,3 +359,31 @@ def test_cases_route_empty_state(monkeypatch):
     resp = client.get("/cases")
     assert resp.status_code == 200
     assert "No backfilled cases yet" in resp.text
+
+
+def test_cases_route_paginates(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.ui import app as app_module
+
+    page_size = app_module._CASES_PAGE_SIZE
+    big = CaseStore([_stored(nre_id=str(i), name=f"Case {i}") for i in range(page_size + 25)])
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda cls: big))
+    client = TestClient(app_module.app)
+
+    page1 = client.get("/cases")
+    assert page1.status_code == 200
+    assert page1.text.lower().count("</tr>") - 1 == page_size  # one page, minus header row
+    assert "Page 1 of 2" in page1.text
+    assert "page=2" in page1.text  # next link present
+
+    page2 = client.get("/cases", params={"page": 2})
+    assert page2.text.lower().count("</tr>") - 1 == 25  # remainder
+    assert "Page 2 of 2" in page2.text
+
+    # out-of-range page clamps to the last page instead of erroring
+    clamped = client.get("/cases", params={"page": 999})
+    assert clamped.status_code == 200
+    assert "Page 2 of 2" in clamped.text

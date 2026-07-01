@@ -12,6 +12,7 @@ Run: ``python -m risk_engine.ui`` (starts uvicorn on http://127.0.0.1:8000).
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
@@ -35,6 +36,7 @@ from .forms import (
 
 _HERE = Path(__file__).resolve().parent
 _DEFAULT_SOURCE = "allegheny_pa"  # offline-safe fixture; live sources need a token
+_CASES_PAGE_SIZE = 100  # browse in pages so the store scales past a few thousand rows
 
 app = FastAPI(title="Intake Flagging POC")
 app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
@@ -104,11 +106,13 @@ def cases(
     state: str | None = None,
     factor: str | None = None,
     matched: str | None = None,
+    page: int = 1,
 ) -> HTMLResponse:
     """Browse confirmed exonerations backfilled into the intake schema.
 
     Read-only and unranked: results come back in stored order with no score or
     sort-by-likelihood. ``matched`` filters gap vs matched cases (Section 6.6).
+    Results are paged (``_CASES_PAGE_SIZE`` per page) so the store scales.
     """
     store = CaseStore.load()
     matched_filter = {"yes": True, "no": False}.get((matched or "").lower())
@@ -118,12 +122,21 @@ def cases(
         factor=factor or None,
         matched=matched_filter,
     )
+    match_total = len(results)
+    total_pages = max(1, (match_total + _CASES_PAGE_SIZE - 1) // _CASES_PAGE_SIZE)
+    page = max(1, min(page, total_pages))
+    start = (page - 1) * _CASES_PAGE_SIZE
+    page_results = results[start : start + _CASES_PAGE_SIZE]
+    filter_query = urlencode(
+        {k: v for k, v in (("q", q), ("state", state), ("factor", factor), ("matched", matched)) if v}
+    )
     return templates.TemplateResponse(
         request,
         "cases.html",
         {
             "scope_statement": SCOPE_STATEMENT,
-            "results": results,
+            "results": page_results,
+            "match_total": match_total,
             "total": len(store),
             "states": store.states(),
             "factors": store.factors(),
@@ -131,6 +144,11 @@ def cases(
             "selected_state": state or "",
             "selected_factor": factor or "",
             "selected_matched": matched or "",
+            "page": page,
+            "total_pages": total_pages,
+            "filter_query": filter_query,
+            "range_start": start + 1 if page_results else 0,
+            "range_end": start + len(page_results),
         },
     )
 

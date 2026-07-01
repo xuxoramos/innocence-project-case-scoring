@@ -1,0 +1,9 @@
+{
+  "discredited_forensic_method": 0.7142857142857143,
+  "evidence_preservation": 0.3333333333333333,
+  "informant_circumstance": 0.673469387755102,
+  "judicial_misconduct": 0.0,
+  "police_misconduct": 0.6582278481012658,
+  "prosecutor_misconduct": 0.5864197530864198,
+  "witness_id_circumstance": 0.26373626373626374
+}

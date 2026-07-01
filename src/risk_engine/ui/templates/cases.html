@@ -26,6 +26,12 @@
     form.filters button { background: #102a43; color: #fff; border: 0; border-radius: 5px;
       padding: .45rem 1rem; font: inherit; font-weight: 600; cursor: pointer; }
     form.filters a.clear { font-size: .8rem; color: #555; }
+    nav.pager { display: flex; align-items: center; gap: .75rem; margin: 1rem 0 0; font-size: .85rem; }
+    nav.pager a { color: #102a43; text-decoration: none; font-weight: 600; border: 1px solid var(--line);
+      border-radius: 5px; padding: .35rem .8rem; }
+    nav.pager a:hover { background: #f4f7fb; }
+    nav.pager span.disabled { color: #aaa; border: 1px solid #eee; border-radius: 5px; padding: .35rem .8rem; }
+    nav.pager span.pos { color: #555; }
     table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid #eee; vertical-align: top; }
     th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
@@ -102,7 +108,7 @@
       <a class="clear" href="/cases">clear</a>
     </form>
 
-    <p class="count">{{ results | length }} of {{ total }} case(s)</p>
+    <p class="count">{{ range_start }}&ndash;{{ range_end }} of {{ match_total }} case(s){% if match_total != total %} (filtered from {{ total }}){% endif %}</p>
 
     <table>
       <thead>
@@ -142,6 +148,18 @@
         {% endfor %}
       </tbody>
     </table>
+
+    {% if total_pages > 1 %}
+    <nav class="pager">
+      {% if page > 1 %}
+      <a href="/cases?{{ filter_query }}{% if filter_query %}&{% endif %}page={{ page - 1 }}">&larr; Prev</a>
+      {% else %}<span class="disabled">&larr; Prev</span>{% endif %}
+      <span class="pos">Page {{ page }} of {{ total_pages }}</span>
+      {% if page < total_pages %}
+      <a href="/cases?{{ filter_query }}{% if filter_query %}&{% endif %}page={{ page + 1 }}">Next &rarr;</a>
+      {% else %}<span class="disabled">Next &rarr;</span>{% endif %}
+    </nav>
+    {% endif %}
     {% endif %}
   </main>
 </body>

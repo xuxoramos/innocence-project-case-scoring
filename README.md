@@ -273,7 +273,10 @@ of the National Registry of Exonerations at
 produce — the browse/analytics **case store** at
 `data/processed/case_store.jsonl` (4,311 confirmed exonerations; 4,278 linked to
 a public court record, 33 gaps per Section 6.6). The store is a *derived cache*,
-not an input: you can use the shipped copy, or regenerate it yourself.
+not an input: you can use the shipped copy, or regenerate it yourself. The
+learned per-element **confidence table** derived from that store
+(`data/processed/calibration.json`) ships alongside it and is applied to every
+intake automatically.
 
 ### 11.1 Install
 
@@ -314,6 +317,20 @@ risk-engine backfill --bulk          # streams the snapshots, writes the store
 Both paths resume by default (already-stored cases are skipped); pass
 `--no-resume` to rebuild from scratch. Rows that find no matching court record
 are written as **gaps** (Section 6.6), never as clean/negative results.
+
+### 11.4 Refresh the confidence table
+
+The per-element confidence table is derived from the store, offline and in
+seconds. Re-run it whenever the store is regenerated:
+
+```bash
+risk-engine calibrate --from-store   # writes data/processed/calibration.json
+```
+
+Each value is that element's precision against NRE ground truth over the matched
+cases (never a combined case score, per Section 3.1). Categories that fire below
+the confidence floor are still surfaced at their honest low confidence, not
+suppressed.
 
 ---
 
