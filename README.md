@@ -265,4 +265,56 @@ Consistent with the broader reframe of this project, **the POC's success is not 
 
 ---
 
+## 11. Reproducing the POC
+
+The repository ships the two inputs the pipeline needs: the code, and a snapshot
+of the National Registry of Exonerations at
+`data/raw/exonerations/fullcsv.csv`. It also ships the artifact those inputs
+produce — the browse/analytics **case store** at
+`data/processed/case_store.jsonl` (4,311 confirmed exonerations; 4,278 linked to
+a public court record, 33 gaps per Section 6.6). The store is a *derived cache*,
+not an input: you can use the shipped copy, or regenerate it yourself.
+
+### 11.1 Install
+
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install -e '.[acquisition]'   # 'acquisition' pulls in requests + pandas
+```
+
+### 11.2 Use the shipped case store (fastest)
+
+Nothing to do — `data/processed/case_store.jsonl` is already in the clone. Launch
+the browse UI or run flagging directly against it.
+
+### 11.3 Regenerate the case store
+
+There are two backfill paths; both read the shipped NRE snapshot and write the
+same `data/processed/case_store.jsonl`.
+
+**API path** — links each exoneration to a court record via the CourtListener
+REST API. No large download, but it is network-bound and rate-limited. Set a free
+token first:
+
+```bash
+export COURTLISTENER_API_TOKEN=...   # from courtlistener.com
+risk-engine backfill                 # add --state / --county to scope
+```
+
+**Bulk path** — links records from offline CourtListener quarterly snapshots
+(no API, no rate limit). This is how the shipped store was built. It needs the
+snapshot download (~54 GB compressed for opinions), ~200 GB of scratch space to
+stream through, and several hours of compute:
+
+```bash
+risk-engine bulk-download            # → data/raw/courtlistener_bulk/
+risk-engine backfill --bulk          # streams the snapshots, writes the store
+```
+
+Both paths resume by default (already-stored cases are skipped); pass
+`--no-resume` to rebuild from scratch. Rows that find no matching court record
+are written as **gaps** (Section 6.6), never as clean/negative results.
+
+---
+
 *This brief treats Section 3 (rejected approaches) as a permanent record, not a historical footnote — any future proposal resembling either rejected approach should be checked against the reasoning here before being reconsidered. Sections 5.2 and 6 are treated as binding constraints on every other section.*
