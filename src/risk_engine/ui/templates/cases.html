@@ -35,6 +35,10 @@
     table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid #eee; vertical-align: top; }
     th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+    .info { display: inline-block; width: 1rem; height: 1rem; line-height: 1rem; text-align: center;
+      font: italic 700 .7rem/1rem Georgia, serif; text-transform: none; color: #fff; background: #7a97b5;
+      border-radius: 50%; margin-left: .35rem; cursor: help; vertical-align: middle; }
+    .info:hover, .info:focus { background: #4a90d9; outline: none; }
     .badge { font-size: .7rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px; white-space: nowrap; }
     .badge.matched { background: #ffe0b2; color: #b00020; }
     .badge.gap { background: #fdecea; color: #b00020; border: 1px solid #b00020; }
@@ -125,13 +129,13 @@
     <table>
       <thead>
         <tr>
-          <th>Applicant</th>
-          <th>Jurisdiction</th>
-          <th>Crime</th>
-          <th>Convicted</th>
-          <th>Record</th>
-          <th>NRE factors (ground truth)</th>
-          <th>Engine flags</th>
+          <th>Applicant<span class="info" tabindex="0" title="Exonerated person's name, back-filled from the NRE record. An IP badge marks cases matched to the Innocence Project's public case list.">i</span></th>
+          <th>Jurisdiction<span class="info" tabindex="0" title="County and state where the conviction occurred.">i</span></th>
+          <th>Crime<span class="info" tabindex="0" title="Most serious offense of conviction, as recorded by the NRE.">i</span></th>
+          <th>Convicted<span class="info" tabindex="0" title="Year of the first conviction.">i</span></th>
+          <th>Record<span class="info" tabindex="0" title="Whether a court record was matched. 'gap' means no record was retrieved (Section 6.6), which is a retrieval gap, not a clean result and not a detector miss.">i</span></th>
+          <th>NRE factors (ground truth)<span class="info" tabindex="0" title="Contributing factors the NRE recorded for this exoneration. Gold tags are blind-spot factors the engine has no way to check (Section 6.5).">i</span></th>
+          <th>Engine flags<span class="info" tabindex="0" title="Factors the engine independently flagged from the matched court record. 'none' means a record was read but nothing fired; 'n/a (gap)' means no record was matched.">i</span></th>
         </tr>
       </thead>
       <tbody>

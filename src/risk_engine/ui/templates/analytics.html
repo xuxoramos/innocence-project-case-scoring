@@ -32,6 +32,10 @@
     table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid #eee; }
     th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+    .info { display: inline-block; width: 1rem; height: 1rem; line-height: 1rem; text-align: center;
+      font: italic 700 .7rem/1rem Georgia, serif; text-transform: none; color: #fff; background: #7a97b5;
+      border-radius: 50%; margin-left: .35rem; cursor: help; vertical-align: middle; }
+    .info:hover, .info:focus { background: #4a90d9; outline: none; }
     td.num { text-align: right; font-variant-numeric: tabular-nums; }
     .thin { color: #b08900; font-size: .75rem; font-weight: 700; }
     .empty { color: #777; border: 1px dashed var(--line); border-radius: 6px; padding: 1.5rem; }
@@ -69,7 +73,7 @@
       <div class="card"><div class="n">{{ gap_count }}</div><div class="l">Record gaps (Section 6.6)</div></div>
     </div>
 
-    <h2>Exonerations by contributing factor (NRE ground truth)</h2>
+    <h2>Exonerations by contributing factor (NRE ground truth)<span class="info" tabindex="0" title="How many confirmed exonerations the NRE recorded each contributing factor in. A case can have several factors, so the bars add up to more than the total case count. Longer bar = more common factor.">i</span></h2>
     {% if by_category %}
     {% set cat_max = by_category[0][1] %}
     <div class="bars">
@@ -82,7 +86,7 @@
     {% else %}<p class="note">No mapped factors recorded.</p>{% endif %}
 
     {% if by_unmapped_factor %}
-    <h2>Blind-spot factors the engine cannot check (Section 6.5)</h2>
+    <h2>Blind-spot factors the engine cannot check (Section 6.5)<span class="info" tabindex="0" title="NRE factors with no schema-checkable counterpart, so the engine is structurally blind to them and never flags them. Charted so that blindness stays visible, not hidden.">i</span></h2>
     {% set un_max = by_unmapped_factor[0][1] %}
     <div class="bars">
       {% for label, n in by_unmapped_factor %}
@@ -96,7 +100,7 @@
     {% endif %}
 
     {% if by_state %}
-    <h2>Exonerations by state</h2>
+    <h2>Exonerations by state<span class="info" tabindex="0" title="Count of confirmed exonerations by the state of conviction. Longer bar = more cases in that state.">i</span></h2>
     {% set st_max = by_state[0][1] %}
     <div class="bars">
       {% for label, n in by_state %}
@@ -107,12 +111,12 @@
     </div>
     {% endif %}
 
-    <h2>Per-element flag-vs-label agreement (matched cases only)</h2>
+    <h2>Per-element flag-vs-label agreement (matched cases only)<span class="info" tabindex="0" title="How well each engine flag agrees with NRE ground truth, over matched cases only (gaps are excluded, never charged as misses). Read one row at a time; the numbers are per category and are never combined into a single case score.">i</span></h2>
     {% if agreement %}
     <table>
       <thead>
-        <tr><th>Category</th><th class="num">Fired</th><th class="num">Support</th>
-          <th class="num">Precision</th><th class="num">Recall</th><th>Notes</th></tr>
+        <tr><th>Category</th><th class="num">Fired<span class="info" tabindex="0" title="Number of matched cases in which the engine emitted this flag.">i</span></th><th class="num">Support<span class="info" tabindex="0" title="Number of matched cases whose NRE ground truth includes this category. This is the denominator for recall.">i</span></th>
+          <th class="num">Precision<span class="info" tabindex="0" title="Of the cases where this flag fired, the fraction that were truly this NRE factor. This is what calibration uses as the flag's confidence.">i</span></th><th class="num">Recall<span class="info" tabindex="0" title="Of the cases that truly have this factor, the fraction the engine flagged.">i</span></th><th>Notes<span class="info" tabindex="0" title="Flags a row whose support is below the threshold, where the estimate rests on too few cases to trust.">i</span></th></tr>
       </thead>
       <tbody>
         {% for a in agreement %}
