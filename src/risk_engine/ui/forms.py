@@ -74,8 +74,7 @@ FACTOR_DISPLAY: dict[str, tuple[str, str]] = {
     ),
     FlagCategory.WITNESS_ID_CIRCUMSTANCE.value: (
         "Eyewitness identification",
-        "Mistaken eyewitness identification, including cross-racial identification "
-        "(Section 6.4).",
+        "Mistaken eyewitness identification, including cross-racial identification.",
     ),
     FlagCategory.EVIDENCE_PRESERVATION.value: (
         "Evidence / DNA",
@@ -89,7 +88,8 @@ FACTOR_DISPLAY: dict[str, tuple[str, str]] = {
 BLIND_SPOT_DISPLAY: dict[str, str] = {
     "False Confession": (
         "The defendant gave a confession later shown to be false. The engine has "
-        "no schema-checkable counterpart for this (Section 6.5 blind spot)."
+        "no way to check this from the intake record, so it is a known blind spot: "
+        "a factor the engine can never flag on its own."
     ),
     "Official Misconduct": (
         "The NRE roll-up of official misconduct. The per-role columns (prosecutor, "
@@ -97,8 +97,9 @@ BLIND_SPOT_DISPLAY: dict[str, str] = {
         "unchecked to avoid double-counting."
     ),
     "Inadequate Legal Defense": (
-        "Ineffective assistance of defense counsel. The engine has no "
-        "schema-checkable counterpart for this (Section 6.5 blind spot)."
+        "Ineffective assistance of defense counsel. The engine has no way to check "
+        "this from the intake record, so it is a known blind spot: a factor the "
+        "engine can never flag on its own."
     ),
 }
 

@@ -108,12 +108,12 @@
     </div>
 
     <section class="block">
-      <h3>Innocence Project intake form</h3>
+      <h3>1. Innocence Project intake form</h3>
       <p class="intake-note">
         This is the confirmed exoneration rendered into the common Innocence Network intake schema
-        (Section 5.1) &mdash; the same form the live intake uses. Fields the National Registry of
-        Exonerations structures are filled from its record; narrative fields the NRE does not carry
-        are shown as <em>not provided</em> rather than invented (Section 3.2).
+        &mdash; the same form the live intake uses. Fields the National Registry of
+        Exonerations records are filled from its record; narrative fields the registry does not carry
+        are shown as <em>not provided</em> rather than invented, so nothing here is fabricated.
       </p>
       {% for group in case.intake_form %}
       <div class="intake-group">
@@ -130,7 +130,7 @@
     </section>
 
     <section class="block">
-      <h3>Case record</h3>
+      <h3>2. Case record</h3>
       <dl class="facts">
         <dt>NRE id</dt><dd><code>{{ case.nre_id }}</code></dd>
         <dt>Jurisdiction</dt><dd>{{ case.jurisdiction or "&mdash;" | safe }}</dd>
@@ -146,7 +146,7 @@
     </section>
 
     <section class="block">
-      <h3>NRE contributing factors (ground truth)</h3>
+      <h3>3. NRE contributing factors (ground truth)</h3>
       {% if case.factors or case.blind_spots %}
       <ul class="factors">
         {% for f in case.factors %}
@@ -159,15 +159,15 @@
         {% for f in case.blind_spots %}
         <li>
           <span class="factor-name blind">{{ f.name }}</span>
-          <span class="pill blind" title="A known blind spot: the engine has no way to check this (Section 6.5)">blind spot</span>
+          <span class="pill blind" title="A known blind spot: the engine has no way to check this from the intake record">blind spot</span>
           <p class="factor-desc">{{ f.description }}</p>
         </li>
         {% endfor %}
       </ul>
       <p class="muted" style="font-size:.8rem; margin:.6rem 0 0;">
         These are the factors the NRE recorded for this exoneration. &ldquo;Checkable&rdquo; factors have a
-        schema counterpart the engine can look for; &ldquo;blind spot&rdquo; factors it structurally cannot verify
-        (Section 6.5). They are listed, never summed into a score (Section 3.1).
+        schema counterpart the engine can look for; &ldquo;blind spot&rdquo; factors it structurally cannot verify.
+        They are listed individually, never summed into a score or rank.
       </p>
       {% else %}
       <p class="muted">&mdash; no contributing factors recorded for this case.</p>
@@ -175,11 +175,11 @@
     </section>
 
     <section class="block">
-      <h3>Engine flags</h3>
+      <h3>4. Engine flags</h3>
       {% if not case.matched %}
       <p class="muted">
         No court record was retrieved for this case, so the engine produced nothing to show. This is a
-        <strong>retrieval gap</strong> (Section 6.6), not a clean result and not a detector miss.
+        <strong>retrieval gap</strong> &mdash; no record was found, which is not a clean result and not a detector miss.
       </p>
       {% elif not case.flags %}
       <p><span class="badge clean">none fired</span> A record was matched and read, but no verifiable element was flagged.</p>
@@ -211,7 +211,7 @@
       </table>
       <p class="muted" style="font-size:.8rem; margin:.6rem 0 0;">
         Each flag stands on its own evidence; they are never summed or combined into a case-level
-        score or rank (Section 3.1).
+        score or rank.
       </p>
       {% endif %}
     </section>

@@ -69,7 +69,7 @@
       back-filled into the same intake schema the live form uses. The factor tags are NRE
       ground truth; any flags are what the engine independently produced from the matched court
       record. Cases shown as <span class="badge gap">gap</span> had no matching record retrieved
-      (Section 6.6) &mdash; that is a retrieval gap, not a clean result, and not a detector miss.
+      &mdash; that is a retrieval gap, not a clean result, and not a detector miss.
       Nothing here is scored or ranked.
       The <span class="badge ip">IP</span> badge marks the {{ ip_total }} case(s) matched to the
       <a href="https://innocenceproject.org/all-cases/">Innocence Project&rsquo;s public case list</a>
@@ -135,8 +135,8 @@
           <th>Jurisdiction<span class="info" tabindex="0" title="County and state where the conviction occurred.">i</span></th>
           <th>Crime<span class="info" tabindex="0" title="Most serious offense of conviction, as recorded by the NRE.">i</span></th>
           <th>Convicted<span class="info" tabindex="0" title="Year of the first conviction.">i</span></th>
-          <th>Record<span class="info" tabindex="0" title="Whether a court record was matched. 'gap' means no record was retrieved (Section 6.6), which is a retrieval gap, not a clean result and not a detector miss.">i</span></th>
-          <th>NRE factors (ground truth)<span class="info" tabindex="0" title="Contributing factors the NRE recorded for this exoneration. Gold tags are blind-spot factors the engine has no way to check (Section 6.5).">i</span></th>
+          <th>Record<span class="info" tabindex="0" title="Whether a court record was matched. 'gap' means no record was retrieved, which is a retrieval gap, not a clean result and not a detector miss.">i</span></th>
+          <th>NRE factors (ground truth)<span class="info" tabindex="0" title="Contributing factors the NRE recorded for this exoneration. Gold tags are blind-spot factors the engine has no way to check.">i</span></th>
           <th>Engine flags<span class="info" tabindex="0" title="Factors the engine independently flagged from the matched court record. 'none' means a record was read but nothing fired; 'n/a (gap)' means no record was matched.">i</span></th>
         </tr>
       </thead>
@@ -153,7 +153,7 @@
           </td>
           <td>
             {% for f in c.labels %}<span class="tag">{{ f }}</span>{% endfor %}
-            {% for f in c.unmapped_factors %}<span class="tag unmapped" title="NRE blind-spot factor: no engine check (Section 6.5)">{{ f }}</span>{% endfor %}
+            {% for f in c.unmapped_factors %}<span class="tag unmapped" title="NRE blind-spot factor: the engine has no way to check this">{{ f }}</span>{% endfor %}
             {% if not c.labels and not c.unmapped_factors %}&mdash;{% endif %}
           </td>
           <td>

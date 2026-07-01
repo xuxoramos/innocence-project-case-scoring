@@ -62,15 +62,15 @@
     {% else %}
     <p class="provenance">
       Descriptive only, over <strong>confirmed exonerations</strong>. Every figure below counts one
-      dimension across cases; none combines a single case into a score or rank (Section 3.1).
+      dimension across cases; none combines a single case into a score or rank.
       Flag-vs-label agreement uses <strong>matched cases only</strong> &mdash; gaps are excluded from the
-      denominator, never charged as misses (Section 6.6).
+      denominator, never charged as misses.
     </p>
 
     <div class="cards">
       <div class="card"><div class="n">{{ total }}</div><div class="l">Confirmed exonerations</div></div>
       <div class="card"><div class="n">{{ matched_count }}</div><div class="l">Matched to a record</div></div>
-      <div class="card"><div class="n">{{ gap_count }}</div><div class="l">Record gaps (Section 6.6)</div></div>
+      <div class="card"><div class="n">{{ gap_count }}</div><div class="l">Record gaps (no record found)</div></div>
     </div>
 
     <h2>Exonerations by contributing factor (NRE ground truth)<span class="info" tabindex="0" title="How many confirmed exonerations the NRE recorded each contributing factor in. A case can have several factors, so the bars add up to more than the total case count. Longer bar = more common factor.">i</span></h2>
@@ -86,7 +86,7 @@
     {% else %}<p class="note">No mapped factors recorded.</p>{% endif %}
 
     {% if by_unmapped_factor %}
-    <h2>Blind-spot factors the engine cannot check (Section 6.5)<span class="info" tabindex="0" title="NRE factors with no schema-checkable counterpart, so the engine is structurally blind to them and never flags them. Charted so that blindness stays visible, not hidden.">i</span></h2>
+    <h2>Blind-spot factors the engine cannot check<span class="info" tabindex="0" title="NRE factors with no schema-checkable counterpart, so the engine is structurally blind to them and never flags them. Charted so that blindness stays visible, not hidden.">i</span></h2>
     {% set un_max = by_unmapped_factor[0][1] %}
     <div class="bars">
       {% for label, n in by_unmapped_factor %}
