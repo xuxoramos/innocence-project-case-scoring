@@ -302,9 +302,50 @@ class BulkCourtListenerMatcher:
         (or the best available text field) only for the clusters in
         ``cases_by_cluster``. Returns the number of opinion documents attached. A
         no-op (returns 0) when no opinions snapshot is configured.
+
+        With pandas available each chunk is filtered to the matched clusters
+        *vectorised* (in C) before any per-row Python runs — so the ~10M
+        non-matching opinions never become Python objects, which is the
+        difference between an hours-long and a many-hours-long pass.
         """
         if not self.opinions_path or not cases_by_cluster:
             return 0
+        pd = _pandas_or_none()
+        if pd is None:
+            return self._attach_text_stdlib(cases_by_cluster)
+
+        wanted = {"id", "cluster_id"} | set(_OPINION_TEXT_FIELDS)
+        ids = set(cases_by_cluster)
+        attached = 0
+        seen = 0
+        chunks = pd.read_csv(
+            self.opinions_path,
+            usecols=lambda c: c in wanted,
+            dtype=str,
+            na_filter=False,
+            engine="c",
+            compression=_pd_compression(self.opinions_path),
+            chunksize=_OPINION_CHUNK,
+            quotechar='"',
+            doublequote=False,
+            escapechar="\\",
+            on_bad_lines="skip",
+        )
+        for chunk in chunks:
+            seen += len(chunk)
+            if "cluster_id" in chunk.columns:
+                hits = chunk[chunk["cluster_id"].isin(ids)]  # C-level filter, tiny result
+                for row in hits.itertuples(index=False):
+                    attached += self._attach_one(cases_by_cluster, row._asdict())
+            print(
+                f"[attach_text] scanned {seen:,} opinions, attached {attached} docs",
+                file=sys.stderr,
+                flush=True,
+            )
+        return attached
+
+    def _attach_text_stdlib(self, cases_by_cluster: dict[str, Case]) -> int:
+        """Stdlib fallback for :meth:`attach_text` when pandas is not installed."""
         wanted = {"id", "cluster_id"} | set(_OPINION_TEXT_FIELDS)
         attached = 0
 
@@ -316,27 +357,32 @@ class BulkCourtListenerMatcher:
             )
 
         for row in _iter_rows(self.opinions_path, wanted, chunksize=_OPINION_CHUNK, heartbeat=_hb):
-            cluster_id = (row.get("cluster_id") or "").strip()
-            case = cases_by_cluster.get(cluster_id)
-            if case is None:
-                continue
-            text = _first(row, _OPINION_TEXT_FIELDS)
-            if not text:
-                continue
-            opinion_id = (row.get("id") or "").strip()
-            case.documents.append(
-                Document(
-                    doc_id=f"{case.case_id}-OP{opinion_id}",
-                    case_id=case.case_id,
-                    source_uri=f"https://www.courtlistener.com/opinions/{opinion_id}/",
-                    media_type="text/plain",
-                    needs_ocr=False,  # bulk opinions are already digital text
-                    normalized_text=text,
-                    metadata={"cluster_id": cluster_id},
-                )
-            )
-            attached += 1
+            attached += self._attach_one(cases_by_cluster, row)
         return attached
+
+    def _attach_one(self, cases_by_cluster: dict[str, Case], row: dict) -> int:
+        """Attach one opinion's text to its matched case; return 1 if attached."""
+        cluster_id = (row.get("cluster_id") or "").strip()
+        case = cases_by_cluster.get(cluster_id)
+        if case is None:
+            return 0
+        text = _first(row, _OPINION_TEXT_FIELDS)
+        if not text:
+            return 0
+        opinion_id = (row.get("id") or "").strip()
+        case.documents.append(
+            Document(
+                doc_id=f"{case.case_id}-OP{opinion_id}",
+                case_id=case.case_id,
+                source_uri=f"https://www.courtlistener.com/opinions/{opinion_id}/",
+                media_type="text/plain",
+                needs_ocr=False,  # bulk opinions are already digital text
+                normalized_text=text,
+                metadata={"cluster_id": cluster_id},
+            )
+        )
+        return 1
+
 
 
 # -- snapshot discovery / download (thin network shell) --------------------
