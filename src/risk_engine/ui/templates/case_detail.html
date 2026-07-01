@@ -54,6 +54,8 @@
     .factor-name { font-weight: 600; }
     .factor-name.blind { color: #6b5418; }
     .factor-desc { color: #555; font-size: .85rem; margin: .1rem 0 0; }
+    .factor-why { color: #33691e; background: #f1f7ec; border-left: 3px solid #7cb342;
+      font-size: .8rem; margin: .35rem 0 0; padding: .25rem .5rem; border-radius: 3px; }
     .pill { display: inline-block; font-size: .68rem; font-weight: 700; text-transform: uppercase;
       letter-spacing: .03em; border-radius: 4px; padding: .05rem .4rem; margin-left: .45rem;
       vertical-align: middle; }
@@ -154,6 +156,7 @@
           <span class="factor-name">{{ f.label }}</span>
           <span class="pill checkable" title="The engine has a schema check for this factor">checkable</span>
           {% if f.description %}<p class="factor-desc">{{ f.description }}</p>{% endif %}
+          <p class="factor-why">{{ f.rationale }}</p>
         </li>
         {% endfor %}
         {% for f in case.blind_spots %}
@@ -161,6 +164,7 @@
           <span class="factor-name blind">{{ f.name }}</span>
           <span class="pill blind" title="A known blind spot: the engine has no way to check this from the intake record">blind spot</span>
           <p class="factor-desc">{{ f.description }}</p>
+          <p class="factor-why">{{ f.rationale }}</p>
         </li>
         {% endfor %}
       </ul>

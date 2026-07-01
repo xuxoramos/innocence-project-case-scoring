@@ -12,6 +12,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from ..intake.schema import IntakeCategory, field_by_key, near_universal_fields
+from ..labels import NRE_FACTOR_COLUMNS
 from ..packet import CasePacket, RecordSearchStatus
 from ..models import FlagBasis, FlagCategory
 
@@ -103,10 +104,57 @@ BLIND_SPOT_DISPLAY: dict[str, str] = {
     ),
 }
 
+#: The NRE factor-column(s) that back each schema-checkable category. This is the
+#: concrete data behind a "checkable" tag: the Registry field the engine reads to
+#: verify the factor. Inverted from ``labels.NRE_FACTOR_COLUMNS`` so the detail
+#: view can show *why* a factor is checkable, not just that it is.
+CATEGORY_TO_NRE_COLUMNS: dict[str, list[str]] = {}
+for _col, _cat in NRE_FACTOR_COLUMNS.items():
+    CATEGORY_TO_NRE_COLUMNS.setdefault(_cat.value, []).append(_col)
+for _cat_value in CATEGORY_TO_NRE_COLUMNS:
+    CATEGORY_TO_NRE_COLUMNS[_cat_value].sort()
+
+#: Why each blind-spot factor cannot be checked — the concrete rationale behind a
+#: "blind spot" tag, keyed by the NRE factor-column name stored verbatim.
+BLIND_SPOT_REASON: dict[str, str] = {
+    "False Confession": (
+        "No intake-schema field records a confession, so the engine has no data to "
+        "test this factor against."
+    ),
+    "Official Misconduct": (
+        "This is the Registry's rolled-up misconduct total. The individual "
+        "prosecutor, judge, police, and forensic-analyst factors carry the "
+        "specifics and are checked on their own, so the rollup is left unchecked to "
+        "avoid counting the same conduct twice."
+    ),
+    "Inadequate Legal Defense": (
+        "No intake-schema field records the quality of defense counsel, so the "
+        "engine has no data to test this factor against."
+    ),
+}
+
 
 def factor_display(value: str) -> tuple[str, str]:
     """Human label + description for a FlagCategory value (falls back gracefully)."""
     return FACTOR_DISPLAY.get(value, (_pretty(value), ""))
+
+
+def _checkable_rationale(value: str) -> str:
+    """Plain-language reason a factor is tagged "checkable", naming the NRE field.
+
+    The concrete data behind the tag: the Registry factor-column(s) the engine
+    reads to verify this factor. Falls back to a generic sentence if the value
+    is not one of the mapped categories.
+    """
+    cols = CATEGORY_TO_NRE_COLUMNS.get(value, [])
+    if not cols:
+        return "The engine has a schema check for this factor."
+    quoted = " or ".join(f"\u201c{c}\u201d" for c in cols)
+    field_word = "field" if len(cols) == 1 else "fields"
+    return (
+        f"Tagged checkable because the National Registry records it in its "
+        f"{quoted} {field_word}, which the engine reads to verify the factor."
+    )
 
 
 def intake_form_view(intake) -> list[dict]:
@@ -266,11 +314,23 @@ def case_detail_view(case, ip_case=None) -> dict:
     described on its own (§3.1).
     """
     factors = [
-        {"value": v, "label": factor_display(v)[0], "description": factor_display(v)[1]}
+        {
+            "value": v,
+            "label": factor_display(v)[0],
+            "description": factor_display(v)[1],
+            "sources": CATEGORY_TO_NRE_COLUMNS.get(v, []),
+            "rationale": _checkable_rationale(v),
+        }
         for v in case.labels
     ]
     blind_spots = [
-        {"name": f, "description": BLIND_SPOT_DISPLAY.get(f, "NRE blind-spot factor: no engine check (Section 6.5).")}
+        {
+            "name": f,
+            "description": BLIND_SPOT_DISPLAY.get(f, "NRE blind-spot factor the engine has no way to check."),
+            "rationale": BLIND_SPOT_REASON.get(
+                f, "No intake-schema field maps to this factor, so the engine has no data to check it."
+            ),
+        }
         for f in case.unmapped_factors
     ]
     predicted = [

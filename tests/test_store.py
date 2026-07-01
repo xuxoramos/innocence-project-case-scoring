@@ -457,6 +457,9 @@ def test_case_detail_route_shows_flags_and_factors(monkeypatch):
     assert "Discredited forensic method" in resp.text
     assert "checkable" in resp.text
     assert "blind spot" in resp.text
+    # the data behind each tag: NRE source field for checkable, reason for blind spot
+    assert "False or Misleading Forensic Evidence" in resp.text  # why it is checkable
+    assert "avoid counting the same conduct twice" in resp.text  # why it is a blind spot
 
     # the browse row links to the detail page
     listing = client.get("/cases")
