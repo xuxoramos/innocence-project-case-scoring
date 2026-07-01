@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% if case %}{{ case.name }}{% else %}Case not found{% endif %} &mdash; Intake Flagging POC</title>
+  <style>
+    :root { --gap: #b00020; --found: #1b5e20; --clean: #455a64; --line: #d0d0d0; }
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+    header { padding: 1rem 1.5rem; background: #102a43; color: #fff; }
+    header h1 { margin: 0 0 .25rem; font-size: 1.2rem; }
+    header p { margin: 0; font-size: .85rem; opacity: .85; }
+    nav.tabs { display: flex; gap: .25rem; padding: 0 1.5rem; background: #0b2235; }
+    nav.tabs a { color: #cbd6e2; text-decoration: none; font-size: .85rem; font-weight: 600;
+      padding: .55rem .9rem; border-bottom: 3px solid transparent; }
+    nav.tabs a:hover { color: #fff; }
+    nav.tabs a.active { color: #fff; border-bottom-color: #4a90d9; }
+    main { padding: 1.5rem; max-width: 60rem; }
+    a.back { display: inline-block; font-size: .85rem; color: #102a43; text-decoration: none;
+      font-weight: 600; margin: 0 0 1rem; }
+    a.back:hover { text-decoration: underline; }
+    .provenance { font-size: .82rem; color: #555; background: #f4f7fb; border-left: 3px solid #102a43;
+      padding: .6rem .9rem; border-radius: 0 6px 6px 0; margin: 1.2rem 0; }
+    h2.name { margin: 0 0 .4rem; font-size: 1.4rem; }
+    .badges { margin: 0 0 1.2rem; }
+    .badge { font-size: .72rem; font-weight: 700; padding: .14rem .55rem; border-radius: 999px;
+      white-space: nowrap; margin-right: .35rem; }
+    .badge.matched { background: #ffe0b2; color: #b00020; }
+    .badge.gap { background: #fdecea; color: #b00020; border: 1px solid #b00020; }
+    .badge.ip { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; }
+    .badge.clean { background: #eceff1; color: #455a64; }
+    section.block { border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin: 0 0 1.2rem; }
+    section.block h3 { margin: 0 0 .6rem; font-size: .95rem; }
+    dl.facts { display: grid; grid-template-columns: 12rem 1fr; gap: .35rem 1rem; margin: 0; }
+    dl.facts dt { color: #555; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+    dl.facts dd { margin: 0; }
+    .tag { display: inline-block; font-size: .74rem; background: #eef2f7; color: #334; border-radius: 4px;
+      padding: .1rem .45rem; margin: 0 .25rem .25rem 0; }
+    .tag.unmapped { background: #f3e9d2; color: #6b5418; }
+    .muted { color: #999; }
+    table.flags { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .4rem 0 0; }
+    table.flags th, table.flags td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eee;
+      vertical-align: top; }
+    table.flags th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+    .passage { color: #333; font-style: italic; }
+    .conf { font-variant-numeric: tabular-nums; }
+    code { background: #f2f2f2; padding: .05rem .3rem; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Exoneration case detail</h1>
+    <p>{{ scope_statement }}</p>
+  </header>
+  <nav class="tabs">
+    <a href="/">Intake</a>
+    <a href="/cases" class="active">Exoneration cases</a>
+    <a href="/analytics">Analytics</a>
+  </nav>
+  <main>
+    <a class="back" href="{{ back_url }}">&larr; Back to cases</a>
+
+    {% if not case %}
+    <section class="block">
+      <h3>Case not found</h3>
+      <p class="muted">No stored exoneration matches that id. It may have been removed when the store was regenerated.</p>
+    </section>
+    {% else %}
+    <h2 class="name">{{ case.name }}</h2>
+    <div class="badges">
+      {% if case.matched %}<span class="badge matched">record matched</span>
+      {% else %}<span class="badge gap">retrieval gap</span>{% endif %}
+      {% if case.innocence_project %}<span class="badge ip" title="Matched to the Innocence Project public case list">Innocence Project</span>{% endif %}
+    </div>
+
+    <section class="block">
+      <h3>Case record</h3>
+      <dl class="facts">
+        <dt>NRE id</dt><dd><code>{{ case.nre_id }}</code></dd>
+        <dt>Jurisdiction</dt><dd>{{ case.jurisdiction or "&mdash;" | safe }}</dd>
+        <dt>Crime</dt><dd>{{ case.crime or "&mdash;" | safe }}</dd>
+        <dt>Year of crime</dt><dd>{{ case.crime_year or "&mdash;" | safe }}</dd>
+        <dt>Year of conviction</dt><dd>{{ case.conviction_year or "&mdash;" | safe }}</dd>
+        <dt>Source</dt><dd>National Registry of Exonerations (<code>{{ case.provenance }}</code>)</dd>
+      </dl>
+    </section>
+
+    <section class="block">
+      <h3>NRE contributing factors (ground truth)</h3>
+      <p>
+        {% for f in case.labels %}<span class="tag">{{ f }}</span>{% endfor %}
+        {% for f in case.unmapped_factors %}<span class="tag unmapped" title="NRE blind-spot factor: no engine check (Section 6.5)">{{ f }}</span>{% endfor %}
+        {% if not case.labels and not case.unmapped_factors %}<span class="muted">&mdash; none recorded</span>{% endif %}
+      </p>
+      <p class="muted" style="font-size:.8rem; margin:.2rem 0 0;">
+        Plain tags are factors with a schema-checkable counterpart; gold tags are blind-spot
+        factors the engine has no way to verify (Section 6.5).
+      </p>
+    </section>
+
+    <section class="block">
+      <h3>Engine flags</h3>
+      {% if not case.matched %}
+      <p class="muted">
+        No court record was retrieved for this case, so the engine produced nothing to show. This is a
+        <strong>retrieval gap</strong> (Section 6.6), not a clean result and not a detector miss.
+      </p>
+      {% elif not case.flags %}
+      <p><span class="badge clean">none fired</span> A record was matched and read, but no verifiable element was flagged.</p>
+      {% else %}
+      <table class="flags">
+        <thead>
+          <tr>
+            <th>Element</th>
+            <th>Basis</th>
+            <th>Confidence</th>
+            <th>Verification source</th>
+            <th>Source passage</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in case.flags %}
+          <tr>
+            <td>{{ f.category }}</td>
+            <td>{{ f.basis }}</td>
+            <td class="conf">{{ "%.2f"|format(f.extraction_confidence) }}</td>
+            <td>{{ f.verification_source or "&mdash;" | safe }}</td>
+            <td class="passage">{{ f.source_passage or "&mdash;" | safe }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="muted" style="font-size:.8rem; margin:.6rem 0 0;">
+        Each flag stands on its own evidence; they are never summed or combined into a case-level
+        score or rank (Section 3.1).
+      </p>
+      {% endif %}
+    </section>
+
+    <p class="provenance">
+      This is a <strong>confirmed exoneration</strong> from the National Registry of Exonerations,
+      back-filled into the same intake schema the live form uses. The contributing factors are NRE
+      ground truth; any engine flags are what the engine independently produced from the matched
+      court record. Nothing on this page is scored or ranked.
+    </p>
+    {% endif %}
+  </main>
+</body>
+</html>

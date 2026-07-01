@@ -417,3 +417,64 @@ def test_cases_route_paginates(monkeypatch):
     clamped = client.get("/cases", params={"page": 999})
     assert clamped.status_code == 200
     assert "Page 2 of 2" in clamped.text
+
+
+def test_store_get_returns_case_or_none():
+    store = _store()
+    assert store.get("2").name == "Jane Roe"
+    assert store.get("missing") is None
+
+
+def test_case_detail_route_shows_flags_and_factors(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.ui import app as app_module
+
+    store = CaseStore(
+        [
+            _stored(
+                nre_id="1",
+                name="Thomas Doswell",
+                labels=[_FORENSIC],
+                unmapped_factors=["Official Misconduct"],
+                predicted=[_FORENSIC],
+                flags=[StoredFlag(_FORENSIC, "directly_stated", 0.91, "bite mark comparison", None)],
+            )
+        ]
+    )
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda cls: store))
+    client = TestClient(app_module.app)
+
+    resp = client.get("/cases/1")
+    assert resp.status_code == 200
+    assert "Thomas Doswell" in resp.text
+    assert "bite mark comparison" in resp.text  # source passage surfaced
+    assert "Official Misconduct" in resp.text  # blind-spot factor shown
+    assert "0.91" in resp.text  # extraction confidence rendered
+
+    # the browse row links to the detail page
+    listing = client.get("/cases")
+    assert 'href="/cases/1"' in listing.text
+
+
+def test_case_detail_route_gap_and_missing(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.ui import app as app_module
+
+    store = CaseStore([_stored(nre_id="9", name="Gap Person", matched=False, predicted=[], flags=[])])
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda cls: store))
+    client = TestClient(app_module.app)
+
+    gap = client.get("/cases/9")
+    assert gap.status_code == 200
+    assert "retrieval gap" in gap.text.lower()
+
+    missing = client.get("/cases/nope")
+    assert missing.status_code == 404
+    assert "not found" in missing.text.lower()
+

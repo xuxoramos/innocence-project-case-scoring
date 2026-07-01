@@ -422,6 +422,13 @@ class CaseStore:
     def __len__(self) -> int:
         return len(self.cases)
 
+    def get(self, nre_id: str) -> StoredCase | None:
+        """Return the single case with this ``nre_id``, or ``None`` if absent."""
+        for case in self.cases:
+            if case.nre_id == nre_id:
+                return case
+        return None
+
     def filtered(
         self,
         *,

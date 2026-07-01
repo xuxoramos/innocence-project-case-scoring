@@ -169,6 +169,33 @@ def cases(
     )
 
 
+@app.get("/cases/{nre_id}", response_class=HTMLResponse)
+def case_detail(request: Request, nre_id: str) -> HTMLResponse:
+    """Read-only detail view for one backfilled exoneration.
+
+    Shows the whole stored record for a single case — jurisdiction, offence, the
+    NRE ground-truth factors, and (for matched cases) every engine flag with its
+    basis, extraction confidence, verification source, and the source passage it
+    was drawn from. Still per-element and unscored (Section 3.1): the page lists
+    each flag on its own and never combines them into a case-level number.
+    """
+    store = CaseStore.load()
+    case = store.get(nre_id)
+    back_url = request.headers.get("referer") or "/cases"
+    if case is None:
+        return templates.TemplateResponse(
+            request,
+            "case_detail.html",
+            {"scope_statement": SCOPE_STATEMENT, "case": None, "back_url": back_url},
+            status_code=404,
+        )
+    return templates.TemplateResponse(
+        request,
+        "case_detail.html",
+        {"scope_statement": SCOPE_STATEMENT, "case": case, "back_url": back_url},
+    )
+
+
 @app.get("/analytics", response_class=HTMLResponse)
 def analytics(request: Request) -> HTMLResponse:
     """Descriptive analytics over the backfilled confirmed exonerations.

@@ -35,6 +35,8 @@
     table { width: 100%; border-collapse: collapse; font-size: .85rem; }
     th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid #eee; vertical-align: top; }
     th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+    a.applicant { color: #102a43; font-weight: 600; text-decoration: none; }
+    a.applicant:hover { text-decoration: underline; }
     .info { display: inline-block; width: 1rem; height: 1rem; line-height: 1rem; text-align: center;
       font: italic 700 .7rem/1rem Georgia, serif; text-transform: none; color: #fff; background: #7a97b5;
       border-radius: 50%; margin-left: .35rem; cursor: help; vertical-align: middle; }
@@ -141,7 +143,7 @@
       <tbody>
         {% for c in results %}
         <tr>
-          <td>{{ c.name }}{% if c.innocence_project %}<span class="badge ip" title="Matched to the Innocence Project public case list">IP</span>{% endif %}</td>
+          <td><a class="applicant" href="/cases/{{ c.nre_id }}" title="Open case detail">{{ c.name }}</a>{% if c.innocence_project %}<span class="badge ip" title="Matched to the Innocence Project public case list">IP</span>{% endif %}</td>
           <td>{{ c.jurisdiction }}</td>
           <td>{{ c.crime }}</td>
           <td>{{ c.conviction_year or "&mdash;" | safe }}</td>
