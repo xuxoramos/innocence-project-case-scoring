@@ -40,6 +40,12 @@ DEFAULT_IP_ROSTER_PATH: Path = settings.raw_dir / "innocence_project" / "all_cas
 _SUFFIXES = frozenset({"jr", "sr", "ii", "iii", "iv", "v"})
 
 
+#: Base URL for an individual Innocence Project case page (slug appended).
+IP_CASE_URL_BASE = "https://innocenceproject.org/cases/"
+#: The public case list, used when a roster entry has no usable slug.
+IP_CASE_LIST_URL = "https://innocenceproject.org/all-cases/"
+
+
 @dataclass(frozen=True)
 class IPCase:
     """One Innocence Project exoneree as scraped from the public case list."""
@@ -48,6 +54,11 @@ class IPCase:
     slug: str
     state: str
     exoneration_year: str | None = None
+
+    @property
+    def url(self) -> str:
+        """Link to this exoneree's page on the Innocence Project site."""
+        return f"{IP_CASE_URL_BASE}{self.slug}/" if self.slug else IP_CASE_LIST_URL
 
 
 def load_roster(path: str | Path = DEFAULT_IP_ROSTER_PATH) -> list[IPCase]:
@@ -133,3 +144,33 @@ def tag_cases(
             _mark(cand)
 
     return len(tagged)
+
+
+def find_ip_case(
+    case: StoredCase,
+    roster: list[IPCase] | None = None,
+) -> IPCase | None:
+    """Return the roster entry this stored case matches, or ``None``.
+
+    The reverse of :func:`tag_cases` for a single case, using the same two
+    conservative, state-agreeing passes (exact normalized name, then an
+    unambiguous surname + first-initial fallback). Used by the detail view to
+    surface the exoneree's Innocence Project page and exoneration year; it never
+    invents a match the tagging pass would not also make.
+    """
+    if roster is None:
+        roster = load_roster()
+    if not roster:
+        return None
+    target = _norm(case.name)
+    state = (case.state or "").lower()
+    for ip in roster:
+        if _norm(ip.name) == target and (ip.state or "").lower() == state:
+            return ip
+    key = _surname_key(case.name, case.state)
+    if key is None:
+        return None
+    cand = [ip for ip in roster if _surname_key(ip.name, ip.state) == key]
+    if cand and len({_norm(ip.name) for ip in cand}) == 1:
+        return cand[0]
+    return None

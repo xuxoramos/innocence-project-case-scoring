@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 
 from ..acquisition import get_source, list_sources
 from ..calibration import calibrated_pipeline
+from ..innocence_project import find_ip_case
 from ..intake.structuring import structure_intake
 from ..models import SCOPE_STATEMENT
 from ..retrieval import build_packet_for_intake
@@ -29,6 +30,7 @@ from .forms import (
     APPLICANT_REF_FIELD,
     CHAPTER_FIELD,
     SOURCE_FIELD,
+    case_detail_view,
     form_field_groups,
     packet_view,
     parse_intake_form,
@@ -189,10 +191,15 @@ def case_detail(request: Request, nre_id: str) -> HTMLResponse:
             {"scope_statement": SCOPE_STATEMENT, "case": None, "back_url": back_url},
             status_code=404,
         )
+    ip_case = find_ip_case(case) if case.innocence_project else None
     return templates.TemplateResponse(
         request,
         "case_detail.html",
-        {"scope_statement": SCOPE_STATEMENT, "case": case, "back_url": back_url},
+        {
+            "scope_statement": SCOPE_STATEMENT,
+            "case": case_detail_view(case, ip_case),
+            "back_url": back_url,
+        },
     )
 
 

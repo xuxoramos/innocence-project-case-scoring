@@ -453,10 +453,35 @@ def test_case_detail_route_shows_flags_and_factors(monkeypatch):
     assert "bite mark comparison" in resp.text  # source passage surfaced
     assert "Official Misconduct" in resp.text  # blind-spot factor shown
     assert "0.91" in resp.text  # extraction confidence rendered
+    # enriched: human factor label + description, checkable/blind-spot pills
+    assert "Discredited forensic method" in resp.text
+    assert "checkable" in resp.text
+    assert "blind spot" in resp.text
 
     # the browse row links to the detail page
     listing = client.get("/cases")
     assert 'href="/cases/1"' in listing.text
+
+
+def test_case_detail_route_links_innocence_project(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.innocence_project import IPCase
+    from risk_engine.ui import app as app_module
+
+    store = CaseStore([_stored(nre_id="7", name="Alan Crotzer", state="Florida", innocence_project=True)])
+    roster = [IPCase(name="Alan Crotzer", slug="alan-crotzer", state="Florida", exoneration_year="2006")]
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda cls: store))
+    monkeypatch.setattr(app_module, "find_ip_case", lambda case: roster[0])
+    client = TestClient(app_module.app)
+
+    resp = client.get("/cases/7")
+    assert resp.status_code == 200
+    assert "innocenceproject.org/cases/alan-crotzer/" in resp.text  # links to IP page
+    assert "2006" in resp.text  # exoneration year surfaced
+
 
 
 def test_case_detail_route_gap_and_missing(monkeypatch):

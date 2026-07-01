@@ -15,28 +15,40 @@
       padding: .55rem .9rem; border-bottom: 3px solid transparent; }
     nav.tabs a:hover { color: #fff; }
     nav.tabs a.active { color: #fff; border-bottom-color: #4a90d9; }
-    main { padding: 1.5rem; max-width: 60rem; }
+    main { padding: 1.5rem; max-width: 62rem; }
     a.back { display: inline-block; font-size: .85rem; color: #102a43; text-decoration: none;
       font-weight: 600; margin: 0 0 1rem; }
     a.back:hover { text-decoration: underline; }
     .provenance { font-size: .82rem; color: #555; background: #f4f7fb; border-left: 3px solid #102a43;
       padding: .6rem .9rem; border-radius: 0 6px 6px 0; margin: 1.2rem 0; }
-    h2.name { margin: 0 0 .4rem; font-size: 1.4rem; }
-    .badges { margin: 0 0 1.2rem; }
-    .badge { font-size: .72rem; font-weight: 700; padding: .14rem .55rem; border-radius: 999px;
-      white-space: nowrap; margin-right: .35rem; }
+    h2.name { margin: 0 0 .5rem; font-size: 1.4rem; }
+    .badges { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 1.4rem; }
+    .badge { font-size: .72rem; font-weight: 700; padding: .16rem .6rem; border-radius: 999px;
+      white-space: nowrap; }
     .badge.matched { background: #ffe0b2; color: #b00020; }
     .badge.gap { background: #fdecea; color: #b00020; border: 1px solid #b00020; }
-    .badge.ip { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; }
+    .badge.ip { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; text-decoration: none; }
+    .badge.ip:hover { background: #bbdefb; }
     .badge.clean { background: #eceff1; color: #455a64; }
+    .badge.meta { background: #eef2f7; color: #334; font-weight: 600; }
+    .badge.count { background: #102a43; color: #fff; }
     section.block { border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin: 0 0 1.2rem; }
     section.block h3 { margin: 0 0 .6rem; font-size: .95rem; }
     dl.facts { display: grid; grid-template-columns: 12rem 1fr; gap: .35rem 1rem; margin: 0; }
     dl.facts dt { color: #555; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
     dl.facts dd { margin: 0; }
-    .tag { display: inline-block; font-size: .74rem; background: #eef2f7; color: #334; border-radius: 4px;
-      padding: .1rem .45rem; margin: 0 .25rem .25rem 0; }
-    .tag.unmapped { background: #f3e9d2; color: #6b5418; }
+    dl.facts dd a { color: #0d47a1; }
+    ul.factors { list-style: none; margin: 0; padding: 0; }
+    ul.factors li { padding: .55rem 0; border-bottom: 1px solid #f0f0f0; }
+    ul.factors li:last-child { border-bottom: 0; }
+    .factor-name { font-weight: 600; }
+    .factor-name.blind { color: #6b5418; }
+    .factor-desc { color: #555; font-size: .85rem; margin: .1rem 0 0; }
+    .pill { display: inline-block; font-size: .68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .03em; border-radius: 4px; padding: .05rem .4rem; margin-left: .45rem;
+      vertical-align: middle; }
+    .pill.checkable { background: #e8f0fe; color: #1a56b0; }
+    .pill.blind { background: #f3e9d2; color: #6b5418; }
     .muted { color: #999; }
     table.flags { width: 100%; border-collapse: collapse; font-size: .85rem; margin: .4rem 0 0; }
     table.flags th, table.flags td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eee;
@@ -70,7 +82,19 @@
     <div class="badges">
       {% if case.matched %}<span class="badge matched">record matched</span>
       {% else %}<span class="badge gap">retrieval gap</span>{% endif %}
-      {% if case.innocence_project %}<span class="badge ip" title="Matched to the Innocence Project public case list">Innocence Project</span>{% endif %}
+      {% if case.jurisdiction %}<span class="badge meta">{{ case.jurisdiction }}</span>{% endif %}
+      {% if case.crime %}<span class="badge meta">{{ case.crime }}</span>{% endif %}
+      {% if case.conviction_year %}<span class="badge meta">convicted {{ case.conviction_year }}</span>{% endif %}
+      <span class="badge count">{{ case.factor_count }} NRE factor(s)</span>
+      {% if case.matched %}<span class="badge count">{{ case.flag_count }} engine flag(s)</span>{% endif %}
+      {% if case.innocence_project %}
+        {% if case.ip %}
+        <a class="badge ip" href="{{ case.ip.url }}" title="Open this exoneree's Innocence Project page">
+          Innocence Project{% if case.ip.exoneration_year %} &middot; exonerated {{ case.ip.exoneration_year }}{% endif %} &nearr;</a>
+        {% else %}
+        <span class="badge ip" title="Matched to the Innocence Project public case list">Innocence Project</span>
+        {% endif %}
+      {% endif %}
     </div>
 
     <section class="block">
@@ -82,20 +106,40 @@
         <dt>Year of crime</dt><dd>{{ case.crime_year or "&mdash;" | safe }}</dd>
         <dt>Year of conviction</dt><dd>{{ case.conviction_year or "&mdash;" | safe }}</dd>
         <dt>Source</dt><dd>National Registry of Exonerations (<code>{{ case.provenance }}</code>)</dd>
+        {% if case.ip %}
+        <dt>Innocence Project</dt>
+        <dd><a href="{{ case.ip.url }}">public case page &nearr;</a>{% if case.ip.exoneration_year %} &middot; exonerated {{ case.ip.exoneration_year }}{% endif %}</dd>
+        {% endif %}
       </dl>
     </section>
 
     <section class="block">
       <h3>NRE contributing factors (ground truth)</h3>
-      <p>
-        {% for f in case.labels %}<span class="tag">{{ f }}</span>{% endfor %}
-        {% for f in case.unmapped_factors %}<span class="tag unmapped" title="NRE blind-spot factor: no engine check (Section 6.5)">{{ f }}</span>{% endfor %}
-        {% if not case.labels and not case.unmapped_factors %}<span class="muted">&mdash; none recorded</span>{% endif %}
+      {% if case.factors or case.blind_spots %}
+      <ul class="factors">
+        {% for f in case.factors %}
+        <li>
+          <span class="factor-name">{{ f.label }}</span>
+          <span class="pill checkable" title="The engine has a schema check for this factor">checkable</span>
+          {% if f.description %}<p class="factor-desc">{{ f.description }}</p>{% endif %}
+        </li>
+        {% endfor %}
+        {% for f in case.blind_spots %}
+        <li>
+          <span class="factor-name blind">{{ f.name }}</span>
+          <span class="pill blind" title="A known blind spot: the engine has no way to check this (Section 6.5)">blind spot</span>
+          <p class="factor-desc">{{ f.description }}</p>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="muted" style="font-size:.8rem; margin:.6rem 0 0;">
+        These are the factors the NRE recorded for this exoneration. &ldquo;Checkable&rdquo; factors have a
+        schema counterpart the engine can look for; &ldquo;blind spot&rdquo; factors it structurally cannot verify
+        (Section 6.5). They are listed, never summed into a score (Section 3.1).
       </p>
-      <p class="muted" style="font-size:.8rem; margin:.2rem 0 0;">
-        Plain tags are factors with a schema-checkable counterpart; gold tags are blind-spot
-        factors the engine has no way to verify (Section 6.5).
-      </p>
+      {% else %}
+      <p class="muted">&mdash; no contributing factors recorded for this case.</p>
+      {% endif %}
     </section>
 
     <section class="block">
@@ -121,9 +165,12 @@
         <tbody>
           {% for f in case.flags %}
           <tr>
-            <td>{{ f.category }}</td>
+            <td>
+              <strong>{{ f.element }}</strong>
+              {% if f.element_description %}<div class="factor-desc">{{ f.element_description }}</div>{% endif %}
+            </td>
             <td>{{ f.basis }}</td>
-            <td class="conf">{{ "%.2f"|format(f.extraction_confidence) }}</td>
+            <td class="conf">{{ f.extraction_confidence }}</td>
             <td>{{ f.verification_source or "&mdash;" | safe }}</td>
             <td class="passage">{{ f.source_passage or "&mdash;" | safe }}</td>
           </tr>

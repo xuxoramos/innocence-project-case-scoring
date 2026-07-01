@@ -13,7 +13,7 @@ from collections.abc import Mapping
 
 from ..intake.schema import IntakeCategory, field_by_key, near_universal_fields
 from ..packet import CasePacket, RecordSearchStatus
-from ..models import FlagBasis
+from ..models import FlagBasis, FlagCategory
 
 #: Schema keys rendered as multi-line text areas rather than single-line inputs.
 _MULTILINE_KEYS = frozenset(
@@ -38,6 +38,75 @@ _STATUS_DISPLAY: dict[RecordSearchStatus, tuple[str, str]] = {
 SOURCE_FIELD = "_source"
 APPLICANT_REF_FIELD = "_applicant_ref"
 CHAPTER_FIELD = "_chapter"
+
+
+#: Human label + one-line description per schema-checkable FlagCategory. Keyed by
+#: the enum *value* so it works on both the stored labels and predicted flags.
+#: These describe what the category means; they never rank or weight it (§3.1).
+FACTOR_DISPLAY: dict[str, tuple[str, str]] = {
+    FlagCategory.DISCREDITED_FORENSIC_METHOD.value: (
+        "Discredited forensic method",
+        "A forensic technique relied on at trial that has since been scientifically "
+        "discredited or shown to be unreliable.",
+    ),
+    FlagCategory.PROSECUTOR_MISCONDUCT.value: (
+        "Prosecutor misconduct",
+        "Misconduct by the prosecuting attorney, such as withholding exculpatory "
+        "evidence or improper argument.",
+    ),
+    FlagCategory.JUDICIAL_MISCONDUCT.value: (
+        "Judicial misconduct",
+        "Misconduct by the trial judge affecting the fairness of the proceeding.",
+    ),
+    FlagCategory.POLICE_MISCONDUCT.value: (
+        "Police misconduct",
+        "Misconduct by law-enforcement officers during the investigation or arrest.",
+    ),
+    FlagCategory.EXPERT_WITNESS_MISCONDUCT.value: (
+        "Forensic-analyst / expert misconduct",
+        "Misconduct by a forensic analyst or expert witness, including misleading "
+        "or fabricated testimony.",
+    ),
+    FlagCategory.INFORMANT_CIRCUMSTANCE.value: (
+        "Informant / false accusation",
+        "A jailhouse or incentivized informant, or perjury / a knowingly false "
+        "accusation against the defendant.",
+    ),
+    FlagCategory.WITNESS_ID_CIRCUMSTANCE.value: (
+        "Eyewitness identification",
+        "Mistaken eyewitness identification, including cross-racial identification "
+        "(Section 6.4).",
+    ),
+    FlagCategory.EVIDENCE_PRESERVATION.value: (
+        "Evidence / DNA",
+        "DNA or physical-evidence issues bearing on preservation, testing, or "
+        "later exoneration.",
+    ),
+}
+
+#: Descriptions for the NRE factors the engine has no schema check for — the
+#: known blind spots (§6.5). Keyed by the NRE factor-column name stored verbatim.
+BLIND_SPOT_DISPLAY: dict[str, str] = {
+    "False Confession": (
+        "The defendant gave a confession later shown to be false. The engine has "
+        "no schema-checkable counterpart for this (Section 6.5 blind spot)."
+    ),
+    "Official Misconduct": (
+        "The NRE roll-up of official misconduct. The per-role columns (prosecutor, "
+        "judge, police, forensic analyst) carry the detail, so this roll-up is left "
+        "unchecked to avoid double-counting."
+    ),
+    "Inadequate Legal Defense": (
+        "Ineffective assistance of defense counsel. The engine has no "
+        "schema-checkable counterpart for this (Section 6.5 blind spot)."
+    ),
+}
+
+
+def factor_display(value: str) -> tuple[str, str]:
+    """Human label + description for a FlagCategory value (falls back gracefully)."""
+    return FACTOR_DISPLAY.get(value, (_pretty(value), ""))
+
 
 
 def _pretty(value: str) -> str:
@@ -148,3 +217,66 @@ def packet_view(packet: CasePacket) -> dict:
         "total_flags": packet.total_flags,
         "has_flags": packet.has_flags,
     }
+
+
+def case_detail_view(case, ip_case=None) -> dict:
+    """Enrich one :class:`~risk_engine.store.StoredCase` for the detail template.
+
+    Turns the flat stored record into a display dict: the schema-checkable NRE
+    factors and every engine flag get a human label and a plain-language
+    description, the blind-spot factors get their §6.5 explanation, and an
+    Innocence Project match (``ip_case``) contributes its case-page link and
+    exoneration year. Nothing here scores or ranks — each factor and flag is
+    described on its own (§3.1).
+    """
+    factors = [
+        {"value": v, "label": factor_display(v)[0], "description": factor_display(v)[1]}
+        for v in case.labels
+    ]
+    blind_spots = [
+        {"name": f, "description": BLIND_SPOT_DISPLAY.get(f, "NRE blind-spot factor: no engine check (Section 6.5).")}
+        for f in case.unmapped_factors
+    ]
+    predicted = [
+        {"value": v, "label": factor_display(v)[0], "description": factor_display(v)[1]}
+        for v in case.predicted
+    ]
+    flags = [
+        {
+            "element": factor_display(f.category)[0],
+            "element_description": factor_display(f.category)[1],
+            "basis": _pretty(f.basis),
+            "extraction_confidence": f"{f.extraction_confidence:.2f}",
+            "verification_source": f.verification_source,
+            "source_passage": " ".join((f.source_passage or "").split()),
+        }
+        for f in case.flags
+    ]
+    ip = None
+    if ip_case is not None:
+        ip = {
+            "url": ip_case.url,
+            "exoneration_year": ip_case.exoneration_year,
+            "state": ip_case.state,
+        }
+    return {
+        "name": case.name,
+        "nre_id": case.nre_id,
+        "provenance": case.provenance,
+        "state": case.state,
+        "county": case.county,
+        "jurisdiction": case.jurisdiction,
+        "crime": case.crime,
+        "crime_year": case.crime_year,
+        "conviction_year": case.conviction_year,
+        "matched": case.matched,
+        "innocence_project": case.innocence_project,
+        "factors": factors,
+        "blind_spots": blind_spots,
+        "predicted": predicted,
+        "flags": flags,
+        "factor_count": len(factors) + len(blind_spots),
+        "flag_count": len(flags),
+        "ip": ip,
+    }
+

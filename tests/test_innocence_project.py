@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from risk_engine.innocence_project import IPCase, load_roster, tag_cases
+from risk_engine.innocence_project import IPCase, find_ip_case, load_roster, tag_cases
 from risk_engine.store import StoredCase
 
 
@@ -82,3 +82,22 @@ def test_retag_is_idempotent_and_resets():
     # Re-tagging with an empty roster clears the prior flag.
     assert tag_cases(cases, []) == 0
     assert cases[0].innocence_project is False
+
+
+def test_ip_case_url_from_slug():
+    assert IPCase("A B", "a-b", "Texas").url == "https://innocenceproject.org/cases/a-b/"
+    # No slug -> falls back to the public case list rather than a broken link.
+    assert IPCase("A B", "", "Texas").url == "https://innocenceproject.org/all-cases/"
+
+
+def test_find_ip_case_reverse_lookup_and_ambiguity():
+    roster = [
+        IPCase("Ron Williamson", "ron-williamson", "Oklahoma", "1999"),
+        IPCase("James Smith", "james-smith", "Texas"),
+    ]
+    # exact + surname-initial fallback, both requiring state agreement
+    assert find_ip_case(_case("Ronald Keith Williamson", "Oklahoma"), roster).slug == "ron-williamson"
+    assert find_ip_case(_case("Ron Williamson", "Texas"), roster) is None  # wrong state
+    # ambiguous surname on the store side is not resolved
+    assert find_ip_case(_case("Someone Nobody", "Utah"), roster) is None
+
