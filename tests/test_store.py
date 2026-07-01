@@ -463,6 +463,31 @@ def test_case_detail_route_shows_flags_and_factors(monkeypatch):
     assert 'href="/cases/1"' in listing.text
 
 
+def test_case_detail_route_renders_intake_form(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.ui import app as app_module
+
+    store = CaseStore(
+        [_stored(nre_id="1", name="Thomas Doswell", crime="Rape", conviction_year=1986)]
+    )
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda cls: store))
+    client = TestClient(app_module.app)
+
+    resp = client.get("/cases/1")
+    assert resp.status_code == 200
+    # the stored exoneration is rendered as a filled intake form
+    assert "Innocence Project intake form" in resp.text
+    assert "Applicant full name" in resp.text
+    assert "Offense(s) convicted of" in resp.text
+    assert "Claims actual innocence" in resp.text
+    # narrative fields the NRE cannot supply are shown as gaps, never invented
+    assert "not provided" in resp.text
+
+
+
 def test_case_detail_route_links_innocence_project(monkeypatch):
     pytest.importorskip("fastapi")
     pytest.importorskip("httpx")

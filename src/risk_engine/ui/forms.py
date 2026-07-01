@@ -108,6 +108,41 @@ def factor_display(value: str) -> tuple[str, str]:
     return FACTOR_DISPLAY.get(value, (_pretty(value), ""))
 
 
+def intake_form_view(intake) -> list[dict]:
+    """Render an :class:`~risk_engine.intake.record.IntakeRecord` as form groups.
+
+    Mirrors the live intake form: the near-universal §5.1 fields grouped by
+    category, each shown with its value where the back-fill populated it and
+    flagged ``provided=False`` (rendered as "not provided") where the NRE has no
+    questionnaire prose to fill it. This lets the case-detail page present a
+    stored exoneration exactly as an intake staffer would see the form.
+    """
+    groups: list[dict] = []
+    for category in IntakeCategory:
+        specs = [f for f in near_universal_fields() if f.category is category]
+        if not specs:
+            continue
+        fields = []
+        for spec in specs:
+            item = intake.get(spec.key)
+            fields.append(
+                {
+                    "label": spec.label,
+                    "value": item.value if item else "",
+                    "provided": item is not None,
+                    "source": item.source_passage if item else "",
+                }
+            )
+        groups.append(
+            {
+                "label": _pretty(category.value),
+                "fields": fields,
+                "provided_count": sum(1 for f in fields if f["provided"]),
+            }
+        )
+    return groups
+
+
 
 def _pretty(value: str) -> str:
     return value.replace("_", " ").capitalize()
@@ -271,6 +306,7 @@ def case_detail_view(case, ip_case=None) -> dict:
         "conviction_year": case.conviction_year,
         "matched": case.matched,
         "innocence_project": case.innocence_project,
+        "intake_form": intake_form_view(case.to_intake()),
         "factors": factors,
         "blind_spots": blind_spots,
         "predicted": predicted,

@@ -38,6 +38,16 @@
     dl.facts dt { color: #555; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
     dl.facts dd { margin: 0; }
     dl.facts dd a { color: #0d47a1; }
+    .intake-note { font-size: .82rem; color: #555; margin: 0 0 1rem; }
+    .intake-group { margin: 0 0 1rem; }
+    .intake-group:last-child { margin-bottom: 0; }
+    .intake-group h4 { margin: 0 0 .4rem; font-size: .82rem; text-transform: uppercase;
+      letter-spacing: .03em; color: #102a43; border-bottom: 2px solid #e3e9f0; padding-bottom: .2rem; }
+    dl.intake { display: grid; grid-template-columns: 18rem 1fr; gap: .3rem 1rem; margin: 0; }
+    dl.intake dt { color: #555; font-size: .85rem; }
+    dl.intake dd { margin: 0; }
+    dl.intake dd.filled { font-weight: 600; }
+    dl.intake dd.blank { color: #aaa; font-style: italic; }
     ul.factors { list-style: none; margin: 0; padding: 0; }
     ul.factors li { padding: .55rem 0; border-bottom: 1px solid #f0f0f0; }
     ul.factors li:last-child { border-bottom: 0; }
@@ -96,6 +106,28 @@
         {% endif %}
       {% endif %}
     </div>
+
+    <section class="block">
+      <h3>Innocence Project intake form</h3>
+      <p class="intake-note">
+        This is the confirmed exoneration rendered into the common Innocence Network intake schema
+        (Section 5.1) &mdash; the same form the live intake uses. Fields the National Registry of
+        Exonerations structures are filled from its record; narrative fields the NRE does not carry
+        are shown as <em>not provided</em> rather than invented (Section 3.2).
+      </p>
+      {% for group in case.intake_form %}
+      <div class="intake-group">
+        <h4>{{ group.label }}</h4>
+        <dl class="intake">
+          {% for f in group.fields %}
+          <dt>{{ f.label }}</dt>
+          {% if f.provided %}<dd class="filled"{% if f.source %} title="{{ f.source }}"{% endif %}>{{ f.value }}</dd>
+          {% else %}<dd class="blank">not provided</dd>{% endif %}
+          {% endfor %}
+        </dl>
+      </div>
+      {% endfor %}
+    </section>
 
     <section class="block">
       <h3>Case record</h3>

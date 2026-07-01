@@ -103,6 +103,30 @@ class StoredCase:
             return f"{self.county} County, {self.state}"
         return ", ".join(p for p in (self.county, self.state) if p)
 
+    def to_intake(self):
+        """Rebuild the intake this exoneree *would* have filed (§5.1 schema).
+
+        Reverses the back-fill: the same NRE-derived fields
+        :func:`risk_engine.dataset.intake_from_exoneration` populates (name,
+        offense, jurisdiction, conviction/crime dates, the actual-innocence
+        claim), so the detail view can show a stored case as a filled intake
+        form. Narrative fields stay empty — the NRE carries no questionnaire
+        prose, and inventing it would fabricate evidence (§3.2).
+        """
+        from .dataset import intake_from_exoneration
+
+        return intake_from_exoneration(
+            ExonerationRecord(
+                nre_id=self.nre_id,
+                name=self.name,
+                state=self.state,
+                county=self.county,
+                crime=self.crime,
+                crime_year=self.crime_year,
+                conviction_year=self.conviction_year,
+            )
+        )
+
     def to_dict(self) -> dict:
         return asdict(self)
 
