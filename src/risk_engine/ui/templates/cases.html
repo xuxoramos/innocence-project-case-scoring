@@ -38,6 +38,7 @@
     .badge { font-size: .7rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px; white-space: nowrap; }
     .badge.matched { background: #ffe0b2; color: #b00020; }
     .badge.gap { background: #fdecea; color: #b00020; border: 1px solid #b00020; }
+    .badge.ip { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; margin-left: .35rem; }
     .tag { display: inline-block; font-size: .72rem; background: #eef2f7; color: #334; border-radius: 4px;
       padding: .08rem .4rem; margin: 0 .2rem .2rem 0; }
     .tag.unmapped { background: #f3e9d2; color: #6b5418; }
@@ -64,6 +65,9 @@
       record. Cases shown as <span class="badge gap">gap</span> had no matching record retrieved
       (Section 6.6) &mdash; that is a retrieval gap, not a clean result, and not a detector miss.
       Nothing here is scored or ranked.
+      The <span class="badge ip">IP</span> badge marks the {{ ip_total }} case(s) matched to the
+      <a href="https://innocenceproject.org/all-cases/">Innocence Project&rsquo;s public case list</a>
+      by name and state; the rest are other-organization or private-counsel exonerations the NRE also tracks.
     </p>
 
     {% if total == 0 %}
@@ -104,6 +108,14 @@
           <option value="no" {% if selected_matched == "no" %}selected{% endif %}>Gap</option>
         </select>
       </div>
+      <div>
+        <label for="ip">Innocence Project</label>
+        <select id="ip" name="ip">
+          <option value="" {% if selected_ip == "" %}selected{% endif %}>All</option>
+          <option value="yes" {% if selected_ip == "yes" %}selected{% endif %}>IP cases</option>
+          <option value="no" {% if selected_ip == "no" %}selected{% endif %}>Other</option>
+        </select>
+      </div>
       <button type="submit">Filter</button>
       <a class="clear" href="/cases">clear</a>
     </form>
@@ -125,7 +137,7 @@
       <tbody>
         {% for c in results %}
         <tr>
-          <td>{{ c.name }}</td>
+          <td>{{ c.name }}{% if c.innocence_project %}<span class="badge ip" title="Matched to the Innocence Project public case list">IP</span>{% endif %}</td>
           <td>{{ c.jurisdiction }}</td>
           <td>{{ c.crime }}</td>
           <td>{{ c.conviction_year or "&mdash;" | safe }}</td>

@@ -361,6 +361,36 @@ def test_cases_route_empty_state(monkeypatch):
     assert "No backfilled cases yet" in resp.text
 
 
+def test_cases_route_innocence_project_badge_and_filter(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.ui import app as app_module
+
+    store = CaseStore(
+        [
+            _stored(nre_id="1", name="Marvin Anderson", state="Virginia", innocence_project=True),
+            _stored(nre_id="2", name="Other Person", state="Texas", innocence_project=False),
+        ]
+    )
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda cls: store))
+    client = TestClient(app_module.app)
+
+    allcases = client.get("/cases")
+    assert allcases.status_code == 200
+    assert 'class="badge ip"' in allcases.text  # badge rendered for the IP case
+    assert "Marvin Anderson" in allcases.text and "Other Person" in allcases.text
+
+    ip_only = client.get("/cases", params={"ip": "yes"})
+    assert "Marvin Anderson" in ip_only.text
+    assert "Other Person" not in ip_only.text
+
+    other = client.get("/cases", params={"ip": "no"})
+    assert "Other Person" in other.text
+    assert "Marvin Anderson" not in other.text
+
+
 def test_cases_route_paginates(monkeypatch):
     pytest.importorskip("fastapi")
     pytest.importorskip("httpx")

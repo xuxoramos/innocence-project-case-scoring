@@ -332,6 +332,20 @@ cases (never a combined case score, per Section 3.1). Categories that fire below
 the confidence floor are still surfaced at their honest low confidence, not
 suppressed.
 
+### 11.5 Innocence Project overlay
+
+The store is sourced from the **National Registry of Exonerations**, which tracks
+*every* US exoneration regardless of who secured it. To distinguish the subset the
+**Innocence Project** won, the browse UI joins each stored case against the IP's
+public case list (`data/raw/innocence_project/all_cases.json`, scraped from
+<https://innocenceproject.org/all-cases/>) by applicant name **and** conviction
+state. Matches carry an `IP` badge and an "Innocence Project" filter in `/cases`.
+
+The join is applied on load, so it survives store regeneration and needs no build
+step. It is deliberately conservative: name and state must agree, and roster
+entries with no store match (recent or name-changed exonerees the NRE snapshot
+predates) are simply left untagged — an honest gap, never a fabricated match.
+
 ---
 
 *This brief treats Section 3 (rejected approaches) as a permanent record, not a historical footnote — any future proposal resembling either rejected approach should be checked against the reasoning here before being reconsidered. Sections 5.2 and 6 are treated as binding constraints on every other section.*

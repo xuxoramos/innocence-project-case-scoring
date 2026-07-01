@@ -38,6 +38,7 @@ from pathlib import Path
 
 from .config import settings
 from .dataset import DEFAULT_EXONERATION_SOURCE, LabeledExample, build_labeled_example
+from .innocence_project import tag_cases
 from .labels import ExonerationRecord
 from .models import FlagCategory
 from .processing import Pipeline
@@ -91,6 +92,10 @@ class StoredCase:
     #: FlagCategory values the pipeline emitted on the matched case.
     predicted: list[str] = field(default_factory=list)
     flags: list[StoredFlag] = field(default_factory=list)
+    #: Whether this exoneration was secured by the Innocence Project. External
+    #: metadata joined from their public case list (see ``innocence_project``);
+    #: recomputed on load, so the persisted value is advisory.
+    innocence_project: bool = False
 
     @property
     def jurisdiction(self) -> str:
@@ -408,7 +413,11 @@ class CaseStore:
 
     @classmethod
     def load(cls, path: str | Path = DEFAULT_CASE_STORE_PATH) -> "CaseStore":
-        return cls(load_cases(path))
+        store = cls(load_cases(path))
+        # Best-effort overlay: tag Innocence Project cases from the shipped
+        # roster. No-ops (leaves every flag False) when the roster is absent.
+        tag_cases(store.cases)
+        return store
 
     def __len__(self) -> int:
         return len(self.cases)
@@ -420,12 +429,14 @@ class CaseStore:
         state: str | None = None,
         factor: str | None = None,
         matched: bool | None = None,
+        innocence_project: bool | None = None,
     ) -> list[StoredCase]:
         """Return cases matching all supplied filters, in stored order.
 
         ``query`` matches the applicant name (case-insensitive substring),
         ``state`` matches exactly (case-insensitive), ``factor`` matches a labels
-        or unmapped-factor value, and ``matched`` filters gap vs matched.
+        or unmapped-factor value, ``matched`` filters gap vs matched, and
+        ``innocence_project`` filters IP-secured vs other exonerations.
         """
         out = self.cases
         if query:
@@ -437,6 +448,8 @@ class CaseStore:
             out = [c for c in out if factor in c.labels or factor in c.unmapped_factors]
         if matched is not None:
             out = [c for c in out if c.matched is matched]
+        if innocence_project is not None:
+            out = [c for c in out if c.innocence_project is innocence_project]
         return out
 
     @property
@@ -446,6 +459,10 @@ class CaseStore:
     @property
     def gap_count(self) -> int:
         return sum(1 for c in self.cases if not c.matched)
+
+    @property
+    def innocence_project_count(self) -> int:
+        return sum(1 for c in self.cases if c.innocence_project)
 
     def states(self) -> list[str]:
         return sorted({c.state for c in self.cases if c.state})

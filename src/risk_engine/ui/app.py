@@ -106,21 +106,25 @@ def cases(
     state: str | None = None,
     factor: str | None = None,
     matched: str | None = None,
+    ip: str | None = None,
     page: int = 1,
 ) -> HTMLResponse:
     """Browse confirmed exonerations backfilled into the intake schema.
 
     Read-only and unranked: results come back in stored order with no score or
-    sort-by-likelihood. ``matched`` filters gap vs matched cases (Section 6.6).
+    sort-by-likelihood. ``matched`` filters gap vs matched cases (Section 6.6),
+    ``ip`` filters Innocence Project cases vs other exonerations.
     Results are paged (``_CASES_PAGE_SIZE`` per page) so the store scales.
     """
     store = CaseStore.load()
     matched_filter = {"yes": True, "no": False}.get((matched or "").lower())
+    ip_filter = {"yes": True, "no": False}.get((ip or "").lower())
     results = store.filtered(
         query=q or None,
         state=state or None,
         factor=factor or None,
         matched=matched_filter,
+        innocence_project=ip_filter,
     )
     match_total = len(results)
     total_pages = max(1, (match_total + _CASES_PAGE_SIZE - 1) // _CASES_PAGE_SIZE)
@@ -128,7 +132,17 @@ def cases(
     start = (page - 1) * _CASES_PAGE_SIZE
     page_results = results[start : start + _CASES_PAGE_SIZE]
     filter_query = urlencode(
-        {k: v for k, v in (("q", q), ("state", state), ("factor", factor), ("matched", matched)) if v}
+        {
+            k: v
+            for k, v in (
+                ("q", q),
+                ("state", state),
+                ("factor", factor),
+                ("matched", matched),
+                ("ip", ip),
+            )
+            if v
+        }
     )
     return templates.TemplateResponse(
         request,
@@ -144,6 +158,8 @@ def cases(
             "selected_state": state or "",
             "selected_factor": factor or "",
             "selected_matched": matched or "",
+            "selected_ip": ip or "",
+            "ip_total": store.innocence_project_count,
             "page": page,
             "total_pages": total_pages,
             "filter_query": filter_query,
