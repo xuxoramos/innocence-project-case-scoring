@@ -127,6 +127,22 @@ def test_no_match_yields_all_not_found_and_no_flags():
     )
 
 
+def test_retrieve_attaches_case_seriousness_from_offense():
+    intake = _intake()
+    intake.set("offense_convicted_of", "Murder")
+    result = retrieve_for_intake(intake, source_key="test_retrieval_src")
+    assert result.flags
+    for flag in result.flags:
+        assert flag.descriptors["case_seriousness"] == "capital / homicide"
+
+
+def test_retrieve_without_offense_attaches_no_seriousness():
+    # No offense on the intake -> no grade, not a guessed one (§3.2).
+    result = retrieve_for_intake(_intake(), source_key="test_retrieval_src")
+    assert result.flags
+    assert all("case_seriousness" not in f.descriptors for f in result.flags)
+
+
 def test_build_packet_for_intake_is_end_to_end():
     packet = build_packet_for_intake(_intake(), source_key="test_retrieval_src")
     assert packet.case_id == "APP-1"

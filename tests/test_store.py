@@ -114,6 +114,16 @@ def test_backfill_matched_records_flags_and_predictions():
     assert "Official Misconduct" in case.unmapped_factors
 
 
+def test_backfill_attaches_case_seriousness_descriptor():
+    # _record()'s crime is "Sexual Assault" -> serious violent felony; the grade
+    # rides along on each element flag as a labelled descriptor, never summed.
+    [case] = backfill_cases([_record()], match=True, source_key="store_test_src")
+    assert case.flags
+    for flag in case.flags:
+        assert flag.descriptors["case_seriousness"] == "serious violent felony"
+        assert flag.descriptors["seriousness_basis"]
+
+
 def test_backfill_offline_is_a_gap_with_labels_but_no_predictions():
     [case] = backfill_cases([_record()], match=False)
     assert case.matched is False  # no court record looked up

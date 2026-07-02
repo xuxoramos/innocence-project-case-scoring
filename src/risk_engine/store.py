@@ -42,6 +42,7 @@ from .innocence_project import tag_cases
 from .labels import ExonerationRecord
 from .models import FlagCategory
 from .processing import Pipeline
+from .severity import seriousness_descriptor
 
 #: Where the backfilled case store is persisted by default (JSON Lines).
 DEFAULT_CASE_STORE_PATH: Path = settings.processed_dir / "case_store.jsonl"
@@ -145,6 +146,9 @@ def stored_from_example(example: LabeledExample) -> StoredCase:
     """Flatten a :class:`LabeledExample` into a persistable :class:`StoredCase`."""
     rec: ExonerationRecord = example.exoneration
     matched = example.matched_case is not None
+    # Case-seriousness descriptor (spec v3 §3.4 severity axis) from the graded
+    # offense; merged onto each element flag, never summed (README v2 §3.1).
+    seriousness = seriousness_descriptor(rec.crime)
     flags: list[StoredFlag] = []
     if matched:
         for flag in example.matched_case.flags:  # type: ignore[union-attr]
@@ -155,7 +159,7 @@ def stored_from_example(example: LabeledExample) -> StoredCase:
                     extraction_confidence=flag.extraction_confidence,
                     source_passage=" ".join(flag.source_passage.split()),
                     verification_source=flag.verification_source,
-                    descriptors=dict(flag.descriptors),
+                    descriptors={**dict(flag.descriptors), **seriousness},
                 )
             )
     return StoredCase(

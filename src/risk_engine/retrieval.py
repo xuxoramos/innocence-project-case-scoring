@@ -32,6 +32,7 @@ from .intake.record import IntakeRecord
 from .models import Case, Document, Flag
 from .packet import CasePacket, RecordSearch, RecordSearchStatus, assemble_packet
 from .processing import Pipeline, default_pipeline
+from .severity import seriousness_descriptor
 
 #: Record types a chapter would expect to exist for a conviction. Appellate
 #: opinions are the only kind the POC can retrieve online today (CourtListener);
@@ -266,6 +267,15 @@ def retrieve_for_intake(
     matches.sort(key=lambda m: m.confidence, reverse=True)
 
     cases: list[Case] = [pipeline.process(source.fetch(m.case)) for m in matches]
+    # Attach the case-seriousness descriptor (spec v3 §3.4 severity axis) to every
+    # flag from the offense the applicant reported. It is a per-element labelled
+    # fact, never summed into a case-level number (README v2 §3.1).
+    offense = intake.get("offense_convicted_of")
+    seriousness = seriousness_descriptor(offense.value if offense else "")
+    if seriousness:
+        for case in cases:
+            for flag in case.flags:
+                flag.descriptors = {**flag.descriptors, **seriousness}
     return RetrievalResult(
         criteria=criteria,
         candidates_considered=considered,
