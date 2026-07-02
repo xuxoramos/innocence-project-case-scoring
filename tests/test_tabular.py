@@ -117,3 +117,49 @@ def test_non_misconduct_flag_carries_no_type_descriptor():
     assert flag is not None
     assert "misconduct_type" not in flag.descriptors
 
+
+def test_brady_material_synonym_maps_to_brady():
+    # Corpus phrasing "suppressed Brady material" the bare "brady violation" seed missed.
+    case = _case_with("The prosecution wrongfully suppressed Brady material at trial.")
+    flag = _flag(case, FlagCategory.PROSECUTOR_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "concealing exculpatory evidence (Brady)"
+
+
+def test_giglio_synonym_maps_to_brady():
+    case = _case_with("The State violated Giglio by hiding the witness's deal.")
+    flag = _flag(case, FlagCategory.PROSECUTOR_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "concealing exculpatory evidence (Brady)"
+
+
+def test_failed_to_correct_false_testimony_maps_to_perjury():
+    case = _case_with("The prosecutor failed to correct false testimony from the witness.")
+    flag = _flag(case, FlagCategory.PROSECUTOR_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "perjury / false accusation"
+
+
+def test_manufactured_evidence_synonym_maps_to_fabrication():
+    case = _case_with("Officers manufactured evidence to secure the arrest.")
+    flag = _flag(case, FlagCategory.POLICE_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "fabricating evidence"
+
+
+def test_coerced_statement_synonym_maps_to_interrogation():
+    # Only the interrogation synonym present, so it drives the descriptor.
+    case = _case_with("Detectives took a coerced statement from the suspect overnight.")
+    flag = _flag(case, FlagCategory.POLICE_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "misconduct in interrogations"
+
+
+def test_perjured_testimony_flags_informant_without_type_descriptor():
+    # Perjury/false-accusation lives on the informant column and stays a
+    # circumstance flag -> detected, but no misconduct_type descriptor.
+    case = _case_with("The conviction rested on perjured testimony from a key witness.")
+    flag = _flag(case, FlagCategory.INFORMANT_CIRCUMSTANCE)
+    assert flag is not None
+    assert "misconduct_type" not in flag.descriptors
+
