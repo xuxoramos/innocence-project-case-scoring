@@ -21,7 +21,12 @@ from fastapi.templating import Jinja2Templates
 
 from ..acquisition import get_source, list_sources
 from ..calibration import calibrated_pipeline
-from ..casefiles import CaseFileStore, case_file_from_intake
+from ..casefiles import (
+    RECORD_STATUS_ACQUIRING,
+    CaseFileStore,
+    case_file_from_intake,
+)
+from ..casework import start_retrieval
 from ..innocence_project import find_ip_case
 from ..intake.structuring import structure_intake
 from ..models import SCOPE_STATEMENT
@@ -107,20 +112,26 @@ async def flag(request: Request) -> HTMLResponse:
 
 @app.post("/intake/save", response_class=HTMLResponse)
 async def intake_save(request: Request) -> HTMLResponse:
-    """Persist a manually-entered intake to the case-file store (spec v3, point 1).
+    """Persist a manually-entered intake and kick off record retrieval (spec v3, points 1-2).
 
-    Structures the submitted form and saves it as a :class:`CaseFile` so it appears
-    in the case list. No court records are pulled here — the saved file starts at
-    ``record_status=NOT_STARTED`` (an unstarted retrieval, not a clean result, per
-    §6.6). The async retrieval that supplements it is a later phase.
+    Structures the submitted form, saves it as a :class:`CaseFile` so it appears in
+    the case list immediately, then starts an async job that pulls the matching
+    public court records in the background. The saved file starts at
+    ``record_status=ACQUIRING``; the job drives it to a terminal state (README v2
+    §6.6: a linked record, an honest gap, or a retrieval error — never "clean").
     """
     form = await request.form()
     raw_fields, meta = parse_intake_form({k: str(v) for k, v in form.items()})
+    source_key = meta.get(SOURCE_FIELD, _DEFAULT_SOURCE)
     applicant_ref = meta.get(APPLICANT_REF_FIELD, "")
     chapter = meta.get(CHAPTER_FIELD, "PA")
 
     intake = structure_intake(raw_fields, chapter=chapter, applicant_ref=applicant_ref)
-    case_file = CaseFileStore.load().add(case_file_from_intake(intake))
+    case_file = case_file_from_intake(intake)
+    case_file.source_key = source_key
+    case_file.record_status = RECORD_STATUS_ACQUIRING
+    CaseFileStore.load().add(case_file)
+    start_retrieval(case_file.case_id, intake, source_key=source_key)
 
     return templates.TemplateResponse(
         request,
@@ -226,6 +237,30 @@ def case_file_detail(request: Request, case_id: str) -> HTMLResponse:
             "case": case_file_view(case_file),
             "back_url": back_url,
         },
+    )
+
+
+@app.get("/cases/submitted/{case_id}/status", response_class=HTMLResponse)
+def case_file_status(request: Request, case_id: str) -> HTMLResponse:
+    """Live record-retrieval status fragment for one case file (htmx polls this).
+
+    Returns the current ``record_status`` and any linked record searches. While
+    retrieval is in flight the fragment carries its own poll trigger; once the
+    lifecycle reaches a terminal state (§6.6) the trigger is dropped and polling
+    stops. A 404 yields a terminal fragment so a missing id can't poll forever.
+    """
+    case_file = CaseFileStore.load().get(case_id)
+    if case_file is None:
+        return templates.TemplateResponse(
+            request,
+            "_record_status.html",
+            {"case": None, "case_id": case_id},
+            status_code=404,
+        )
+    return templates.TemplateResponse(
+        request,
+        "_record_status.html",
+        {"case": case_file_view(case_file)},
     )
 
 

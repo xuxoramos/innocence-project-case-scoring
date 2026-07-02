@@ -10,16 +10,28 @@
     border-radius: 5px; padding: .35rem .8rem; font-size: .85rem; }
   .saved .actions a:hover { background: #f4f7fb; }
   .saved .note { margin: .7rem 0 0; font-size: .8rem; color: #555; }
+  .record-status { margin: .7rem 0 0; padding: .6rem .8rem; border: 1px solid #cbd6e2; border-radius: 5px;
+    background: #f4f7fb; font-size: .85rem; }
+  .record-status .rs-head { margin: 0; }
+  .record-status .rs-list { margin: .4rem 0 0; padding-left: 1.2rem; }
+  .record-status .rs-gap { color: #8a6d00; }
+  .record-status .rs-found { color: #1b5e20; }
+  .record-status .rs-error { color: #a12; }
+  .record-status .rs-note { margin: .4rem 0 0; color: #555; }
+  .record-status .rs-count { color: #1b5e20; font-weight: 600; }
+  .rs-spin { display: inline-block; width: .7rem; height: .7rem; margin-right: .35rem; border-radius: 50%;
+    border: 2px solid #b7c7d6; border-top-color: #4a90d9; animation: rs-spin 0.8s linear infinite; vertical-align: -1px; }
+  @keyframes rs-spin { to { transform: rotate(360deg); } }
 </style>
 <div class="saved">
   <h2>Saved to the case list</h2>
   <dl>
     <dt>Applicant</dt><dd>{{ case.name }}</dd>
     <dt>Case ID</dt><dd><code>{{ case.case_id }}</code></dd>
-    <dt>Records</dt><dd>{{ case.record_status_label }}</dd>
   </dl>
-  <p class="note">No court records have been pulled yet. That is an unstarted retrieval,
-  not a clean result &mdash; supplementing this file with public records is a later step.</p>
+  {% include "_record_status.html" %}
+  <p class="note">Court records are being pulled now to supplement this file. The status above
+  updates on its own; a case that turns up no record is shown as a gap, never as a clean result.</p>
   <div class="actions">
     <a href="/cases/submitted/{{ case.case_id }}">Open case file</a>
     <a href="/cases">Go to case list</a>

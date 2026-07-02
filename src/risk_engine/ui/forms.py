@@ -425,6 +425,11 @@ def case_file_view(case_file) -> dict:
         "conviction_year": case_file.conviction_year,
         "record_status": case_file.record_status,
         "record_status_label": case_file.record_status_label,
+        "record_terminal": case_file.record_retrieval_terminal,
+        "record_searches": case_file.record_search_views,
+        "linked_record_count": case_file.linked_record_count,
+        "retrieval_error": case_file.retrieval_error,
+        "retrieved_at": case_file.retrieved_at,
         "intake_form": intake_form_view(case_file.to_intake()),
         "unmapped": list(case_file.unmapped),
     }

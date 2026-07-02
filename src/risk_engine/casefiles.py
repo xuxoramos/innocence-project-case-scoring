@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,19 +32,39 @@ DEFAULT_CASE_FILE_STORE_PATH: Path = settings.processed_dir / "case_files.jsonl"
 #: Provenance stamped on every row: this store is submitted-intake only.
 PROVENANCE_SUBMITTED = "submitted_intake"
 
-#: Record-retrieval lifecycle for a submitted case file. Phase 1 only ever sets
-#: ``NOT_STARTED``; the async retrieval job (spec v3 point 2) drives the rest.
+#: Record-retrieval lifecycle for a submitted case file. A fresh save starts at
+#: ``ACQUIRING`` and the background job (spec v3 point 2, :mod:`risk_engine.casework`)
+#: drives it through ``LINKING`` to a terminal state. ``NOT_STARTED`` remains for
+#: files saved before retrieval was wired up.
 RECORD_STATUS_NOT_STARTED = "NOT_STARTED"
+RECORD_STATUS_ACQUIRING = "ACQUIRING"
+RECORD_STATUS_LINKING = "LINKING"
+RECORD_STATUS_LINKED = "LINKED"
+RECORD_STATUS_NOT_FOUND = "NOT_FOUND"
+RECORD_STATUS_ERROR = "ERROR"
 
-#: Human-readable label per record status (forward-looking; phase 1 uses the
-#: first entry only). Kept honest per §6.6: "not started" and "not found" are
-#: states of missing information, never "clean".
+#: Statuses at which the retrieval lifecycle is finished (the UI stops polling).
+TERMINAL_RECORD_STATUSES: frozenset[str] = frozenset(
+    {RECORD_STATUS_LINKED, RECORD_STATUS_NOT_FOUND, RECORD_STATUS_ERROR, RECORD_STATUS_NOT_STARTED}
+)
+
+#: Human-readable label per record status. Kept honest per §6.6: "not found" is a
+#: state of missing information, never "clean".
 RECORD_STATUS_DISPLAY: dict[str, str] = {
     "NOT_STARTED": "No records retrieved yet",
     "ACQUIRING": "Acquiring court records\u2026",
     "LINKING": "Linking court records\u2026",
     "LINKED": "Court records linked",
     "NOT_FOUND": "No matching record found",
+    "ERROR": "Record retrieval failed",
+}
+
+#: Human label per persisted record-search status value (mirrors
+#: :class:`~risk_engine.packet.RecordSearchStatus`; stored as its ``.value``).
+RECORD_SEARCH_STATUS_DISPLAY: dict[str, str] = {
+    "found_with_flags": "Found \u2014 has flags",
+    "found_no_flags": "Found \u2014 no flags",
+    "not_found": "Not found (gap)",
 }
 
 _YEAR_RE = re.compile(r"(1[89]\d{2}|20\d{2})")
@@ -77,6 +98,10 @@ class CaseFile:
     fields: dict[str, str] = field(default_factory=dict)
     unmapped: list[str] = field(default_factory=list)
     record_status: str = RECORD_STATUS_NOT_STARTED
+    source_key: str = ""
+    record_searches: list[dict] = field(default_factory=list)
+    retrieval_error: str = ""
+    retrieved_at: str = ""
 
     @property
     def name(self) -> str:
@@ -97,6 +122,37 @@ class CaseFile:
     @property
     def record_status_label(self) -> str:
         return RECORD_STATUS_DISPLAY.get(self.record_status, self.record_status)
+
+    @property
+    def record_retrieval_terminal(self) -> bool:
+        """True once the retrieval lifecycle has stopped (UI can stop polling)."""
+        return self.record_status in TERMINAL_RECORD_STATUSES
+
+    @property
+    def record_search_views(self) -> list[dict]:
+        """Persisted record searches enriched with a human status label (\u00a76.6).
+
+        A ``not_found`` entry is a searched-but-absent gap, kept distinct from a
+        record that came back with no flags \u2014 the two are never conflated.
+        """
+        views: list[dict] = []
+        for rec in self.record_searches:
+            status = rec.get("status", "")
+            views.append(
+                {
+                    "record_type": rec.get("record_type", ""),
+                    "status": status,
+                    "status_label": RECORD_SEARCH_STATUS_DISPLAY.get(status, status),
+                    "detail": rec.get("detail", ""),
+                    "found": status != "not_found",
+                }
+            )
+        return views
+
+    @property
+    def linked_record_count(self) -> int:
+        """How many searched record types actually returned a document."""
+        return sum(1 for r in self.record_searches if r.get("status") != "not_found")
 
     def to_intake(self) -> IntakeRecord:
         """Rebuild the structured intake this case file was saved from."""
@@ -155,6 +211,45 @@ def load_case_files(path: str | Path = DEFAULT_CASE_FILE_STORE_PATH) -> list[Cas
             if line:
                 files.append(CaseFile.from_dict(json.loads(line)))
     return files
+
+
+#: Serialises the load-modify-save cycle so a background retrieval job and the
+#: request handlers never clobber each other's writes to the JSON Lines file.
+_STORE_LOCK = threading.Lock()
+
+#: Fields :func:`update_case_file` is allowed to mutate (guards against typos
+#: silently writing junk attributes onto the dataclass).
+_UPDATABLE_FIELDS: frozenset[str] = frozenset(
+    {"record_status", "source_key", "record_searches", "retrieval_error", "retrieved_at"}
+)
+
+
+def update_case_file(
+    case_id: str,
+    *,
+    path: str | Path = DEFAULT_CASE_FILE_STORE_PATH,
+    **changes: object,
+) -> CaseFile | None:
+    """Apply field changes to one persisted case file, atomically and safely.
+
+    Reloads the store under a lock, mutates the matching row, and rewrites the
+    whole file, so concurrent writers (the async retrieval job vs. a new save)
+    can't lose each other's updates. Returns the updated file, or ``None`` when
+    no row matches ``case_id``.
+    """
+    unknown = set(changes) - _UPDATABLE_FIELDS
+    if unknown:
+        raise ValueError(f"cannot update unknown case-file fields: {sorted(unknown)}")
+    with _STORE_LOCK:
+        files = load_case_files(path)
+        for case_file in files:
+            if case_file.case_id == case_id:
+                for key, value in changes.items():
+                    setattr(case_file, key, value)
+                save_case_files(files, path)
+                return case_file
+    return None
+
 
 
 class CaseFileStore:

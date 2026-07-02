@@ -46,6 +46,9 @@
     .badge.gap { background: #fdecea; color: #b00020; border: 1px solid #b00020; }
     .badge.ip { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; margin-left: .35rem; }
     .badge.pending { background: #ede7f6; color: #4527a0; border: 1px solid #b39ddb; }
+    .badge.linked { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+    .badge.notfound { background: #fff8e1; color: #8a6d00; border: 1px solid #ffe082; }
+    .badge.error { background: #fdecea; color: #b00020; border: 1px solid #f5b5ad; }
     .tag { display: inline-block; font-size: .72rem; background: #eef2f7; color: #334; border-radius: 4px;
       padding: .08rem .4rem; margin: 0 .2rem .2rem 0; }
     .tag.unmapped { background: #f3e9d2; color: #6b5418; }
@@ -71,9 +74,9 @@
       <p class="provenance">
         These are <strong>intakes submitted through the live form</strong> and saved to the
         case list. They are kept separate from the confirmed exonerations below and are
-        never commingled with them. A newly saved intake has no court records pulled yet
-        &mdash; that is an unstarted retrieval, not a clean result. Pulling public records
-        to supplement each file is a later step.
+        never commingled with them. When an intake is saved, its public court records are
+        pulled in the background &mdash; a case that turns up no record is shown as a gap,
+        never as a clean result.
       </p>
       <table>
         <thead>
@@ -93,7 +96,10 @@
             <td>{{ f.jurisdiction or "&mdash;" | safe }}</td>
             <td>{{ f.crime or "&mdash;" | safe }}</td>
             <td>{{ f.conviction_year or "&mdash;" | safe }}</td>
-            <td><span class="badge pending" title="No court records retrieved yet">{{ f.record_status_label }}</span></td>
+            <td>
+              {% set cls = "linked" if f.record_status == "LINKED" else "notfound" if f.record_status == "NOT_FOUND" else "error" if f.record_status == "ERROR" else "pending" %}
+              <span class="badge {{ cls }}" title="{{ f.record_status_label }}">{{ f.record_status_label }}</span>
+            </td>
             <td>{{ f.submitted_at[:10] }}</td>
           </tr>
           {% endfor %}

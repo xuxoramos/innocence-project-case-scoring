@@ -1,0 +1,34 @@
+{# Live record-retrieval status fragment (htmx polls this while non-terminal). #}
+{% if case %}
+<div id="record-status-{{ case.case_id }}" class="record-status rs-{{ case.record_status|lower }}"
+  {% if not case.record_terminal %}hx-get="/cases/submitted/{{ case.case_id }}/status"
+     hx-trigger="load delay:2s" hx-swap="outerHTML"{% endif %}>
+  <p class="rs-head">
+    {% if not case.record_terminal %}<span class="rs-spin" aria-hidden="true"></span>{% endif %}
+    <strong>Records:</strong> {{ case.record_status_label }}
+    {% if case.record_terminal and case.linked_record_count %}
+    <span class="rs-count">({{ case.linked_record_count }} linked)</span>
+    {% endif %}
+  </p>
+  {% if case.record_searches %}
+  <ul class="rs-list">
+    {% for r in case.record_searches %}
+    <li class="{{ 'rs-found' if r.found else 'rs-gap' }}">
+      {{ r.record_type }} &mdash; {{ r.status_label }}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  {% if case.retrieval_error %}
+  <p class="rs-error">Retrieval error: {{ case.retrieval_error }}</p>
+  {% endif %}
+  {% if case.record_terminal and not case.record_searches and not case.retrieval_error %}
+  <p class="rs-note">Searched public records; nothing matched this applicant yet. That is a
+  gap, not a finding that the case is clean.</p>
+  {% endif %}
+</div>
+{% else %}
+<div id="record-status-missing" class="record-status rs-error">
+  <p class="rs-head"><strong>Records:</strong> case file not found.</p>
+</div>
+{% endif %}

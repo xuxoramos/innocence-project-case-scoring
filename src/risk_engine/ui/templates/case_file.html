@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% if case %}{{ case.name }}{% else %}Case file not found{% endif %} &mdash; Intake Flagging POC</title>
+  <script src="/static/htmx.min.js"></script>
   <style>
     :root { --line: #d0d0d0; }
     body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1a1a1a; }
@@ -23,6 +24,9 @@
     .badges { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 1.4rem; }
     .badge { font-size: .72rem; font-weight: 700; padding: .16rem .6rem; border-radius: 999px; white-space: nowrap; }
     .badge.pending { background: #ede7f6; color: #4527a0; border: 1px solid #b39ddb; }
+    .badge.linked { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+    .badge.notfound { background: #fff8e1; color: #8a6d00; border: 1px solid #ffe082; }
+    .badge.error { background: #fdecea; color: #b00020; border: 1px solid #f5b5ad; }
     .badge.meta { background: #eef2f7; color: #334; font-weight: 600; }
     section.block { border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin: 0 0 1.2rem; }
     section.block h3 { margin: 0 0 .6rem; font-size: .95rem; }
@@ -42,6 +46,17 @@
     ul.unmapped { margin: .2rem 0 0; padding-left: 1.2rem; font-size: .85rem; color: #6b5418; }
     .muted { color: #999; }
     code { background: #f2f2f2; padding: .05rem .3rem; border-radius: 3px; }
+    .record-status { padding: .7rem .9rem; border: 1px solid var(--line); border-radius: 6px; background: #f7f9fb; }
+    .record-status .rs-head { margin: 0; font-size: .95rem; }
+    .record-status .rs-list { margin: .5rem 0 0; padding-left: 1.2rem; font-size: .88rem; }
+    .record-status .rs-gap { color: #8a6d00; }
+    .record-status .rs-found { color: #1b5e20; }
+    .record-status .rs-error { color: #a12; }
+    .record-status .rs-note { margin: .5rem 0 0; font-size: .84rem; color: #555; }
+    .record-status .rs-count { color: #1b5e20; font-weight: 600; }
+    .rs-spin { display: inline-block; width: .7rem; height: .7rem; margin-right: .35rem; border-radius: 50%;
+      border: 2px solid #b7c7d6; border-top-color: #4a90d9; animation: rs-spin 0.8s linear infinite; vertical-align: -1px; }
+    @keyframes rs-spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -65,7 +80,8 @@
     {% else %}
     <h2 class="name">{{ case.name }}</h2>
     <div class="badges">
-      <span class="badge pending" title="No court records retrieved yet">{{ case.record_status_label }}</span>
+      {% set rcls = "linked" if case.record_status == "LINKED" else "notfound" if case.record_status == "NOT_FOUND" else "error" if case.record_status == "ERROR" else "pending" %}
+      <span class="badge {{ rcls }}" title="{{ case.record_status_label }}">{{ case.record_status_label }}</span>
       {% if case.jurisdiction %}<span class="badge meta">{{ case.jurisdiction }}</span>{% endif %}
       {% if case.crime %}<span class="badge meta">{{ case.crime }}</span>{% endif %}
       {% if case.conviction_year %}<span class="badge meta">convicted {{ case.conviction_year }}</span>{% endif %}
@@ -107,14 +123,17 @@
         <dt>Submitted</dt><dd>{{ case.submitted_at }}</dd>
         <dt>Chapter</dt><dd>{{ case.chapter }}</dd>
         {% if case.applicant_ref %}<dt>Applicant ref</dt><dd>{{ case.applicant_ref }}</dd>{% endif %}
-        <dt>Records</dt><dd>{{ case.record_status_label }}</dd>
         <dt>Source</dt><dd>Submitted intake (<code>{{ case.provenance }}</code>)</dd>
       </dl>
-      <p class="intake-note" style="margin: .9rem 0 0;">
-        No court records have been pulled for this file yet. That is an unstarted retrieval,
-        not a clean result. Supplementing the file with public records and labelling its
-        elements are later steps.
+    </section>
+
+    <section class="block">
+      <h3>3. Court records</h3>
+      <p class="intake-note">
+        Public court records matched to this applicant by name and conviction year. A record
+        that could not be found is shown as a gap, not a finding that the case is clean.
       </p>
+      {% include "_record_status.html" %}
     </section>
     {% endif %}
   </main>

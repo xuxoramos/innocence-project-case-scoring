@@ -101,6 +101,9 @@ def _client(monkeypatch):
     _MemCaseFileStore._shared = []
     monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda cls: CaseStore([])))
     monkeypatch.setattr(app_module, "CaseFileStore", _MemCaseFileStore)
+    # Neutralise the async retrieval job so route tests never spawn real threads;
+    # the job itself is covered offline in test_casework.py.
+    monkeypatch.setattr(app_module, "start_retrieval", lambda *a, **k: None)
     return TestClient(app_module.app)
 
 
@@ -146,7 +149,7 @@ def test_case_file_detail_route_renders_form(monkeypatch):
     assert "Submitted case file" in detail.text
     assert "Rosa Parks" in detail.text
     assert "Robbery" in detail.text
-    assert "No records retrieved yet" in detail.text
+    assert "Acquiring court records" in detail.text  # retrieval kicked off on save
     assert "not provided" in detail.text  # unfilled schema fields shown honestly
 
 
@@ -155,3 +158,69 @@ def test_case_file_detail_route_missing_is_404(monkeypatch):
     resp = client.get("/cases/submitted/CF-does-not-exist")
     assert resp.status_code == 404
     assert "Case file not found" in resp.text
+
+
+def test_intake_save_triggers_retrieval(monkeypatch):
+    client = _client(monkeypatch)
+    from risk_engine.ui import app as app_module
+
+    calls: list = []
+    monkeypatch.setattr(
+        app_module,
+        "start_retrieval",
+        lambda case_id, intake, **kw: calls.append((case_id, kw.get("source_key"))),
+    )
+    resp = client.post(
+        "/intake/save",
+        data={"applicant_full_name": "Rosa Parks", "_source": "allegheny_pa", "_chapter": "PA"},
+    )
+    assert resp.status_code == 200
+    saved = _MemCaseFileStore._shared[0]
+    # saved immediately at ACQUIRING with the chosen source recorded
+    assert saved.record_status == "ACQUIRING"
+    assert saved.source_key == "allegheny_pa"
+    # and the async job was kicked off for this case with that source
+    assert calls == [(saved.case_id, "allegheny_pa")]
+    # the confirmation fragment starts polling the live status endpoint
+    assert f"/cases/submitted/{saved.case_id}/status" in resp.text
+
+
+def test_record_status_endpoint_polls_while_in_flight(monkeypatch):
+    client = _client(monkeypatch)
+    cf = _case_file("Pat Doe")
+    cf.record_status = "LINKING"
+    _MemCaseFileStore._shared = [cf]
+
+    resp = client.get(f"/cases/submitted/{cf.case_id}/status")
+    assert resp.status_code == 200
+    assert "Linking court records" in resp.text
+    # non-terminal: carries its own poll trigger so htmx keeps checking
+    assert f'hx-get="/cases/submitted/{cf.case_id}/status"' in resp.text
+    assert "hx-trigger" in resp.text
+
+
+def test_record_status_endpoint_stops_when_linked(monkeypatch):
+    client = _client(monkeypatch)
+    cf = _case_file("Pat Doe")
+    cf.record_status = "LINKED"
+    cf.record_searches = [
+        {"record_type": "appellate opinion", "status": "found_with_flags", "detail": "d"},
+        {"record_type": "trial court docket", "status": "not_found", "detail": ""},
+    ]
+    _MemCaseFileStore._shared = [cf]
+
+    resp = client.get(f"/cases/submitted/{cf.case_id}/status")
+    assert resp.status_code == 200
+    assert "Court records linked" in resp.text
+    assert "appellate opinion" in resp.text
+    assert "Not found (gap)" in resp.text  # the gap is shown, not hidden
+    # terminal: no poll trigger, so htmx stops
+    assert "hx-trigger" not in resp.text
+
+
+def test_record_status_endpoint_missing_is_404(monkeypatch):
+    client = _client(monkeypatch)
+    resp = client.get("/cases/submitted/CF-none/status")
+    assert resp.status_code == 404
+    assert "not found" in resp.text.lower()
+    assert "hx-trigger" not in resp.text  # a missing id must never poll forever
