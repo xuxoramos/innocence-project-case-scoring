@@ -1,0 +1,27 @@
+{# Confirmation fragment after a manual intake is saved to the case-file store. #}
+<style>
+  .saved { border: 1px solid #1b5e20; background: #e8f5e9; border-radius: 6px; padding: 1rem 1.2rem; }
+  .saved h2 { margin: 0 0 .4rem; font-size: 1rem; color: #1b5e20; }
+  .saved dl { margin: .6rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: .2rem .8rem; font-size: .88rem; }
+  .saved dt { font-weight: 600; color: #444; }
+  .saved dd { margin: 0; }
+  .saved .actions { margin: .9rem 0 0; display: flex; gap: .6rem; }
+  .saved .actions a { color: #102a43; font-weight: 600; text-decoration: none; border: 1px solid #b7c7d6;
+    border-radius: 5px; padding: .35rem .8rem; font-size: .85rem; }
+  .saved .actions a:hover { background: #f4f7fb; }
+  .saved .note { margin: .7rem 0 0; font-size: .8rem; color: #555; }
+</style>
+<div class="saved">
+  <h2>Saved to the case list</h2>
+  <dl>
+    <dt>Applicant</dt><dd>{{ case.name }}</dd>
+    <dt>Case ID</dt><dd><code>{{ case.case_id }}</code></dd>
+    <dt>Records</dt><dd>{{ case.record_status_label }}</dd>
+  </dl>
+  <p class="note">No court records have been pulled yet. That is an unstarted retrieval,
+  not a clean result &mdash; supplementing this file with public records is a later step.</p>
+  <div class="actions">
+    <a href="/cases/submitted/{{ case.case_id }}">Open case file</a>
+    <a href="/cases">Go to case list</a>
+  </div>
+</div>

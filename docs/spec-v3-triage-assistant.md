@@ -68,9 +68,11 @@ state in the codebase, the gap, and the design.
 ### 3.1 Point 1 — Upload & structure a scanned intake form
 
 **Goal.** A reviewer uploads a scanned PDF of a filled-in intake questionnaire. The
-system OCRs and parses it, prefills the web intake form with the parsed values for
-side-by-side review and correction, and saves. Manual entry (no upload) stays fully
-supported. Fields offer autocomplete backed by registry dictionaries.
+system OCRs and parses it, prefills the web intake form with the parsed values, and
+shows the **original uploaded PDF in a scrollable viewer next to the form** so the
+reviewer can check each parsed value against the source page before saving. Manual entry
+(no upload) stays fully supported. Fields offer autocomplete backed by registry
+dictionaries.
 
 **Current state.**
 - Web intake form exists (`ui/templates/index.html`, `ui/app.py` `/` route, driven by
@@ -86,6 +88,10 @@ store; autocomplete datalists.
 - New `POST` upload route accepts a PDF, runs an intake-OCR path (reuse pytesseract from
   `OCRStep`, degrade gracefully), then `structure_intake(...)` to map extracted text onto
   Common Intake Schema keys.
+- **The original uploaded PDF is retained** with the case file and served back to a
+  **scrollable viewer rendered side-by-side with the prefilled form** (two-pane compare
+  layout). The reviewer reads the source page on one side and confirms/corrects the
+  parsed field on the other. This is the primary verification surface for point 1.
 - Render the existing web form **prefilled** with parsed values, each field marked
   parsed-vs-blank so the reviewer can compare and correct before saving. The schema,
   labels, and grounding of the form **do not change** — this is additive.
@@ -187,7 +193,9 @@ Both descriptors stay attached to their element. No case-level number is produce
 ## 4. Data Dependencies
 
 - **New case-file store** — saved intakes + linked records + labels + acquisition status,
-  **separate from the exoneration store**. This is where points 1–3 persist.
+  **separate from the exoneration store**. This is where points 1–3 persist. When an intake
+  came from an upload, the store also **retains the original PDF** so the side-by-side
+  scrollable viewer (point 1) can re-render the source alongside the saved form.
 - **Autocomplete dictionaries** — distinct-value helper over the exoneration store
   (offense, state, county, crime), computed at startup.
 - **Discipline → tier → authority table** (Appendix A) — small curated dataset seeding

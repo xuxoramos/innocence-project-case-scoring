@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% if case %}{{ case.name }}{% else %}Case file not found{% endif %} &mdash; Intake Flagging POC</title>
+  <style>
+    :root { --line: #d0d0d0; }
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+    header { padding: 1rem 1.5rem; background: #102a43; color: #fff; }
+    header h1 { margin: 0 0 .25rem; font-size: 1.2rem; }
+    header p { margin: 0; font-size: .85rem; opacity: .85; }
+    nav.tabs { display: flex; gap: .25rem; padding: 0 1.5rem; background: #0b2235; }
+    nav.tabs a { color: #cbd6e2; text-decoration: none; font-size: .85rem; font-weight: 600;
+      padding: .55rem .9rem; border-bottom: 3px solid transparent; }
+    nav.tabs a:hover { color: #fff; }
+    nav.tabs a.active { color: #fff; border-bottom-color: #4a90d9; }
+    main { padding: 1.5rem; max-width: 62rem; }
+    a.back { display: inline-block; font-size: .85rem; color: #102a43; text-decoration: none;
+      font-weight: 600; margin: 0 0 1rem; }
+    a.back:hover { text-decoration: underline; }
+    h2.name { margin: 0 0 .5rem; font-size: 1.4rem; }
+    .badges { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin: 0 0 1.4rem; }
+    .badge { font-size: .72rem; font-weight: 700; padding: .16rem .6rem; border-radius: 999px; white-space: nowrap; }
+    .badge.pending { background: #ede7f6; color: #4527a0; border: 1px solid #b39ddb; }
+    .badge.meta { background: #eef2f7; color: #334; font-weight: 600; }
+    section.block { border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.2rem; margin: 0 0 1.2rem; }
+    section.block h3 { margin: 0 0 .6rem; font-size: .95rem; }
+    dl.facts { display: grid; grid-template-columns: 12rem 1fr; gap: .35rem 1rem; margin: 0; }
+    dl.facts dt { color: #555; font-size: .8rem; text-transform: uppercase; letter-spacing: .03em; }
+    dl.facts dd { margin: 0; }
+    .intake-note { font-size: .82rem; color: #555; margin: 0 0 1rem; }
+    .intake-group { margin: 0 0 1rem; }
+    .intake-group:last-child { margin-bottom: 0; }
+    .intake-group h4 { margin: 0 0 .4rem; font-size: .82rem; text-transform: uppercase;
+      letter-spacing: .03em; color: #102a43; border-bottom: 2px solid #e3e9f0; padding-bottom: .2rem; }
+    dl.intake { display: grid; grid-template-columns: 18rem 1fr; gap: .3rem 1rem; margin: 0; }
+    dl.intake dt { color: #555; font-size: .85rem; }
+    dl.intake dd { margin: 0; }
+    dl.intake dd.filled { font-weight: 600; }
+    dl.intake dd.blank { color: #aaa; font-style: italic; }
+    ul.unmapped { margin: .2rem 0 0; padding-left: 1.2rem; font-size: .85rem; color: #6b5418; }
+    .muted { color: #999; }
+    code { background: #f2f2f2; padding: .05rem .3rem; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Submitted case file</h1>
+    <p>{{ scope_statement }}</p>
+  </header>
+  <nav class="tabs">
+    <a href="/">Intake</a>
+    <a href="/cases" class="active">Exoneration cases</a>
+    <a href="/analytics">Analytics</a>
+  </nav>
+  <main>
+    <a class="back" href="{{ back_url }}">&larr; Back to cases</a>
+
+    {% if not case %}
+    <section class="block">
+      <h3>Case file not found</h3>
+      <p class="muted">No submitted case file matches that id. It may have been removed when the store was regenerated.</p>
+    </section>
+    {% else %}
+    <h2 class="name">{{ case.name }}</h2>
+    <div class="badges">
+      <span class="badge pending" title="No court records retrieved yet">{{ case.record_status_label }}</span>
+      {% if case.jurisdiction %}<span class="badge meta">{{ case.jurisdiction }}</span>{% endif %}
+      {% if case.crime %}<span class="badge meta">{{ case.crime }}</span>{% endif %}
+      {% if case.conviction_year %}<span class="badge meta">convicted {{ case.conviction_year }}</span>{% endif %}
+    </div>
+
+    <section class="block">
+      <h3>1. Intake form</h3>
+      <p class="intake-note">
+        This is the submitted intake rendered into the common Innocence Network intake schema
+        &mdash; the same form it was filled in on. Fields left blank are shown as
+        <em>not provided</em> rather than invented.
+      </p>
+      {% for group in case.intake_form %}
+      <div class="intake-group">
+        <h4>{{ group.label }}</h4>
+        <dl class="intake">
+          {% for f in group.fields %}
+          <dt>{{ f.label }}</dt>
+          {% if f.provided %}<dd class="filled">{{ f.value }}</dd>
+          {% else %}<dd class="blank">not provided</dd>{% endif %}
+          {% endfor %}
+        </dl>
+      </div>
+      {% endfor %}
+      {% if case.unmapped %}
+      <div class="intake-group">
+        <h4>Unplaced questionnaire content</h4>
+        <ul class="unmapped">
+          {% for u in case.unmapped %}<li>{{ u }}</li>{% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+    </section>
+
+    <section class="block">
+      <h3>2. Case file</h3>
+      <dl class="facts">
+        <dt>Case ID</dt><dd><code>{{ case.case_id }}</code></dd>
+        <dt>Submitted</dt><dd>{{ case.submitted_at }}</dd>
+        <dt>Chapter</dt><dd>{{ case.chapter }}</dd>
+        {% if case.applicant_ref %}<dt>Applicant ref</dt><dd>{{ case.applicant_ref }}</dd>{% endif %}
+        <dt>Records</dt><dd>{{ case.record_status_label }}</dd>
+        <dt>Source</dt><dd>Submitted intake (<code>{{ case.provenance }}</code>)</dd>
+      </dl>
+      <p class="intake-note" style="margin: .9rem 0 0;">
+        No court records have been pulled for this file yet. That is an unstarted retrieval,
+        not a clean result. Supplementing the file with public records and labelling its
+        elements are later steps.
+      </p>
+    </section>
+    {% endif %}
+  </main>
+</body>
+</html>

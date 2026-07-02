@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 
 from ..acquisition import get_source, list_sources
 from ..calibration import calibrated_pipeline
+from ..casefiles import CaseFileStore, case_file_from_intake
 from ..innocence_project import find_ip_case
 from ..intake.structuring import structure_intake
 from ..models import SCOPE_STATEMENT
@@ -31,6 +32,7 @@ from .forms import (
     CHAPTER_FIELD,
     SOURCE_FIELD,
     case_detail_view,
+    case_file_view,
     form_field_groups,
     packet_view,
     parse_intake_form,
@@ -101,6 +103,30 @@ async def flag(request: Request) -> HTMLResponse:
     )
 
 
+@app.post("/intake/save", response_class=HTMLResponse)
+async def intake_save(request: Request) -> HTMLResponse:
+    """Persist a manually-entered intake to the case-file store (spec v3, point 1).
+
+    Structures the submitted form and saves it as a :class:`CaseFile` so it appears
+    in the case list. No court records are pulled here — the saved file starts at
+    ``record_status=NOT_STARTED`` (an unstarted retrieval, not a clean result, per
+    §6.6). The async retrieval that supplements it is a later phase.
+    """
+    form = await request.form()
+    raw_fields, meta = parse_intake_form({k: str(v) for k, v in form.items()})
+    applicant_ref = meta.get(APPLICANT_REF_FIELD, "")
+    chapter = meta.get(CHAPTER_FIELD, "PA")
+
+    intake = structure_intake(raw_fields, chapter=chapter, applicant_ref=applicant_ref)
+    case_file = CaseFileStore.load().add(case_file_from_intake(intake))
+
+    return templates.TemplateResponse(
+        request,
+        "_saved.html",
+        {"case": case_file_view(case_file)},
+    )
+
+
 @app.get("/cases", response_class=HTMLResponse)
 def cases(
     request: Request,
@@ -128,6 +154,7 @@ def cases(
         matched=matched_filter,
         innocence_project=ip_filter,
     )
+    submitted = CaseFileStore.load().list()
     match_total = len(results)
     total_pages = max(1, (match_total + _CASES_PAGE_SIZE - 1) // _CASES_PAGE_SIZE)
     page = max(1, min(page, total_pages))
@@ -152,6 +179,7 @@ def cases(
         {
             "scope_statement": SCOPE_STATEMENT,
             "results": page_results,
+            "submitted": submitted,
             "match_total": match_total,
             "total": len(store),
             "states": store.states(),
@@ -167,6 +195,34 @@ def cases(
             "filter_query": filter_query,
             "range_start": start + 1 if page_results else 0,
             "range_end": start + len(page_results),
+        },
+    )
+
+
+@app.get("/cases/submitted/{case_id}", response_class=HTMLResponse)
+def case_file_detail(request: Request, case_id: str) -> HTMLResponse:
+    """Read-only detail view for one submitted intake case file.
+
+    Shows the saved intake rendered as the same §5.1 form the reviewer filled in,
+    plus the record-retrieval status. No factors or engine flags yet — those are
+    produced once court records are linked (spec v3 points 2–4).
+    """
+    case_file = CaseFileStore.load().get(case_id)
+    back_url = request.headers.get("referer") or "/cases"
+    if case_file is None:
+        return templates.TemplateResponse(
+            request,
+            "case_file.html",
+            {"scope_statement": SCOPE_STATEMENT, "case": None, "back_url": back_url},
+            status_code=404,
+        )
+    return templates.TemplateResponse(
+        request,
+        "case_file.html",
+        {
+            "scope_statement": SCOPE_STATEMENT,
+            "case": case_file_view(case_file),
+            "back_url": back_url,
         },
     )
 

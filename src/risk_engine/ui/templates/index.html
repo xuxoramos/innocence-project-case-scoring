@@ -74,6 +74,9 @@
       {% endfor %}
 
       <button type="submit">Flag elements</button>
+      <button type="button" hx-post="/intake/save" hx-include="closest form"
+        hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy"
+        style="background:#1b5e20; margin-left:.5rem;">Save to case list</button>
       <span id="busy" class="htmx-indicator">&nbsp;working&hellip;</span>
     </form>
 

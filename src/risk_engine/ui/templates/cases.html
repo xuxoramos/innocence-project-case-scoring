@@ -45,6 +45,7 @@
     .badge.matched { background: #ffe0b2; color: #b00020; }
     .badge.gap { background: #fdecea; color: #b00020; border: 1px solid #b00020; }
     .badge.ip { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; margin-left: .35rem; }
+    .badge.pending { background: #ede7f6; color: #4527a0; border: 1px solid #b39ddb; }
     .tag { display: inline-block; font-size: .72rem; background: #eef2f7; color: #334; border-radius: 4px;
       padding: .08rem .4rem; margin: 0 .2rem .2rem 0; }
     .tag.unmapped { background: #f3e9d2; color: #6b5418; }
@@ -64,6 +65,43 @@
     <a href="/analytics">Analytics</a>
   </nav>
   <main>
+    {% if submitted %}
+    <section class="submitted-section" style="margin: 0 0 2rem;">
+      <h2 style="font-size: 1rem; margin: 0 0 .5rem;">Submitted intakes</h2>
+      <p class="provenance">
+        These are <strong>intakes submitted through the live form</strong> and saved to the
+        case list. They are kept separate from the confirmed exonerations below and are
+        never commingled with them. A newly saved intake has no court records pulled yet
+        &mdash; that is an unstarted retrieval, not a clean result. Pulling public records
+        to supplement each file is a later step.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Applicant</th>
+            <th>Jurisdiction</th>
+            <th>Crime</th>
+            <th>Convicted</th>
+            <th>Records</th>
+            <th>Submitted</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in submitted %}
+          <tr>
+            <td><a class="applicant" href="/cases/submitted/{{ f.case_id }}" title="Open case file">{{ f.name }}</a></td>
+            <td>{{ f.jurisdiction or "&mdash;" | safe }}</td>
+            <td>{{ f.crime or "&mdash;" | safe }}</td>
+            <td>{{ f.conviction_year or "&mdash;" | safe }}</td>
+            <td><span class="badge pending" title="No court records retrieved yet">{{ f.record_status_label }}</span></td>
+            <td>{{ f.submitted_at[:10] }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
     <p class="provenance">
       These are <strong>confirmed exonerations</strong> from the National Registry of Exonerations,
       back-filled into the same intake schema the live form uses. The factor tags are NRE

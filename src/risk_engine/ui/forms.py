@@ -377,3 +377,29 @@ def case_detail_view(case, ip_case=None) -> dict:
         "ip": ip,
     }
 
+
+def case_file_view(case_file) -> dict:
+    """Enrich one submitted :class:`~risk_engine.casefiles.CaseFile` for display.
+
+    Shows the saved intake as the same §5.1 form the reviewer filled in, plus the
+    record-retrieval status (``NOT_STARTED`` in phase 1 — no court records pulled
+    yet, an unstarted retrieval, never a clean result per §6.6) and any intake
+    content the structuring layer could not place. No factors or flags yet: those
+    are produced once records are linked (spec v3 points 2–4).
+    """
+    return {
+        "case_id": case_file.case_id,
+        "name": case_file.name,
+        "provenance": case_file.provenance,
+        "chapter": case_file.chapter,
+        "applicant_ref": case_file.applicant_ref,
+        "submitted_at": case_file.submitted_at,
+        "jurisdiction": case_file.jurisdiction,
+        "crime": case_file.crime,
+        "conviction_year": case_file.conviction_year,
+        "record_status": case_file.record_status,
+        "record_status_label": case_file.record_status_label,
+        "intake_form": intake_form_view(case_file.to_intake()),
+        "unmapped": list(case_file.unmapped),
+    }
+
