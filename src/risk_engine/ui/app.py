@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from pathlib import Path
 from urllib.parse import urlencode
+from uuid import uuid4
 
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -25,16 +26,24 @@ from ..casefiles import (
     RECORD_STATUS_ACQUIRING,
     CaseFileStore,
     case_file_from_intake,
+    case_pdf_path,
+    looks_like_pdf,
+    promote_staged_pdf,
+    save_staged_pdf,
+    staged_pdf_path,
 )
 from ..casework import start_retrieval
 from ..innocence_project import find_ip_case
 from ..intake.structuring import structure_intake
 from ..models import SCOPE_STATEMENT
+from ..pdf_intake import prefill_intake_from_pdf
 from ..retrieval import build_packet_for_intake
 from ..store import CaseStore, THIN_SUPPORT
 from .forms import (
     APPLICANT_REF_FIELD,
     CHAPTER_FIELD,
+    PDF_NAME_FIELD,
+    PDF_TOKEN_FIELD,
     SOURCE_FIELD,
     case_detail_view,
     case_file_view,
@@ -42,11 +51,13 @@ from .forms import (
     intake_datalists,
     packet_view,
     parse_intake_form,
+    prefilled_form_groups,
 )
 
 _HERE = Path(__file__).resolve().parent
 _DEFAULT_SOURCE = "allegheny_pa"  # offline-safe fixture; live sources need a token
 _CASES_PAGE_SIZE = 100  # browse in pages so the store scales past a few thousand rows
+_MAX_PDF_BYTES = 25 * 1024 * 1024  # reject oversized uploads before reading them into memory
 
 app = FastAPI(title="Intake Flagging POC")
 app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
@@ -130,6 +141,16 @@ async def intake_save(request: Request) -> HTMLResponse:
     case_file = case_file_from_intake(intake)
     case_file.source_key = source_key
     case_file.record_status = RECORD_STATUS_ACQUIRING
+    # If this intake was prefilled from an uploaded PDF, retain that original PDF
+    # with the case file so it stays available as the verification surface.
+    pdf_token = meta.get(PDF_TOKEN_FIELD, "")
+    if pdf_token:
+        try:
+            if promote_staged_pdf(pdf_token, case_file.case_id):
+                case_file.pdf_stored = True
+                case_file.pdf_original_name = meta.get(PDF_NAME_FIELD, "") or "intake.pdf"
+        except ValueError:  # unsafe token — save without the PDF rather than fail
+            pass
     CaseFileStore.load().add(case_file)
     start_retrieval(case_file.case_id, intake, source_key=source_key)
 
@@ -137,6 +158,66 @@ async def intake_save(request: Request) -> HTMLResponse:
         request,
         "_saved.html",
         {"case": case_file_view(case_file)},
+    )
+
+
+@app.post("/intake/upload", response_class=HTMLResponse)
+async def intake_upload(request: Request, pdf: UploadFile = File(...)) -> HTMLResponse:
+    """Accept an intake PDF, prefill the form, and open the side-by-side compare view.
+
+    The upload is staged (not yet saved), its text extracted offline, and a
+    best-effort intake prefill is shown beside the original PDF so the reviewer can
+    confirm every field against the source (spec v3 point 1). Nothing is invented:
+    unrecognised lines are surfaced separately, blank fields stay blank.
+    """
+    data = await pdf.read()
+    if not data or len(data) > _MAX_PDF_BYTES or not looks_like_pdf(data):
+        return templates.TemplateResponse(
+            request,
+            "_upload_error.html",
+            {
+                "message": (
+                    "That file was not a readable PDF (or was larger than 25 MB). "
+                    "Upload the intake as a PDF, or enter it manually."
+                )
+            },
+            status_code=200,
+        )
+
+    token = uuid4().hex
+    save_staged_pdf(token, data)
+    intake, _text, method = prefill_intake_from_pdf(staged_pdf_path(token))
+
+    sources = _source_options()
+    default = _DEFAULT_SOURCE if any(s["key"] == _DEFAULT_SOURCE for s in sources) else None
+    return templates.TemplateResponse(
+        request,
+        "compare.html",
+        {
+            "scope_statement": SCOPE_STATEMENT,
+            "field_groups": prefilled_form_groups(intake),
+            "datalists": intake_datalists(CaseStore.load()),
+            "sources": sources,
+            "default_source": default,
+            "pdf_token": token,
+            "pdf_name": pdf.filename or "uploaded.pdf",
+            "extraction_method": method,
+            "unmapped": list(intake.unmapped),
+        },
+    )
+
+
+@app.get("/intake/pdf/{token}")
+def intake_pdf(token: str) -> FileResponse:
+    """Serve a staged (uploaded-but-unsaved) PDF for the compare view's iframe."""
+    try:
+        path = staged_pdf_path(token)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="not found") from exc
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(
+        path, media_type="application/pdf", content_disposition_type="inline"
     )
 
 
@@ -261,6 +342,20 @@ def case_file_status(request: Request, case_id: str) -> HTMLResponse:
         request,
         "_record_status.html",
         {"case": case_file_view(case_file)},
+    )
+
+
+@app.get("/cases/submitted/{case_id}/pdf")
+def case_file_pdf(case_id: str) -> FileResponse:
+    """Serve the original intake PDF retained with a saved case file (spec v3 point 1)."""
+    try:
+        path = case_pdf_path(case_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="not found") from exc
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(
+        path, media_type="application/pdf", content_disposition_type="inline"
     )
 
 

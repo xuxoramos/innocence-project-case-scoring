@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Confirm intake against PDF</title>
+  <script src="/static/htmx.min.js"></script>
+  <style>
+    :root { --line: #d0d0d0; }
+    * { box-sizing: border-box; }
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1a1a1a; height: 100vh;
+      display: flex; flex-direction: column; }
+    header { padding: .8rem 1.5rem; background: #102a43; color: #fff; flex: 0 0 auto; }
+    header h1 { margin: 0 0 .15rem; font-size: 1.1rem; }
+    header p { margin: 0; font-size: .8rem; opacity: .85; }
+    header .method { display: inline-block; margin-top: .35rem; font-size: .75rem;
+      background: #24506f; padding: .1rem .5rem; border-radius: 10px; }
+    header a.back { color: #cbd6e2; font-size: .8rem; text-decoration: none; float: right; }
+    header a.back:hover { color: #fff; }
+    .compare { flex: 1 1 auto; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+    .pane { min-height: 0; overflow: auto; }
+    .pane.pdf { border-right: 2px solid #102a43; background: #333; }
+    .pane.pdf iframe { width: 100%; height: 100%; border: 0; }
+    .pane.form { padding: 1rem 1.25rem; }
+    .pane.form h2 { margin: 0 0 .3rem; font-size: 1rem; }
+    .pane.form .lead { margin: 0 0 1rem; font-size: .82rem; color: #555; }
+    fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0 0 1rem; padding: .75rem 1rem 1rem; }
+    legend { font-weight: 600; padding: 0 .4rem; }
+    label { display: block; font-size: .8rem; font-weight: 600; margin: .6rem 0 .15rem; }
+    input, select, textarea { width: 100%; box-sizing: border-box; padding: .4rem .5rem;
+      border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+    textarea { min-height: 4rem; resize: vertical; }
+    .meta { background: #f4f7fb; }
+    button { background: #1b5e20; color: #fff; border: 0; border-radius: 5px;
+      padding: .6rem 1.1rem; font: inherit; font-weight: 600; cursor: pointer; }
+    button:hover { background: #2e7d32; }
+    .unmapped { border: 1px solid #e3c98a; background: #fdf7e6; border-radius: 6px;
+      padding: .7rem .9rem; margin: 0 0 1rem; font-size: .82rem; }
+    .unmapped strong { display: block; margin-bottom: .3rem; }
+    .unmapped ul { margin: 0; padding-left: 1.1rem; }
+    #result:not(:empty) { margin-top: 1rem; }
+    .htmx-indicator { display: none; color: #555; }
+    .htmx-request .htmx-indicator { display: inline; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="back" href="/">&larr; Cancel</a>
+    <h1>Confirm intake against the original PDF</h1>
+    <p>{{ scope_statement }}</p>
+    {% if extraction_method == "embedded" %}
+    <span class="method">Text extracted from the PDF's digital layer &mdash; confirm each field.</span>
+    {% elif extraction_method == "ocr" %}
+    <span class="method">Text recovered by OCR (scanned PDF) &mdash; check carefully for OCR errors.</span>
+    {% else %}
+    <span class="method">No text could be extracted &mdash; read the PDF and enter fields manually.</span>
+    {% endif %}
+  </header>
+  <div class="compare">
+    <div class="pane pdf">
+      <iframe src="/intake/pdf/{{ pdf_token }}" title="Original intake PDF: {{ pdf_name }}"></iframe>
+    </div>
+    <div class="pane form">
+      <h2>Prefilled intake</h2>
+      <p class="lead">From <em>{{ pdf_name }}</em>. Values are a best-effort extraction, not a
+        finding &mdash; correct anything that doesn't match the PDF before saving.</p>
+
+      {% if unmapped %}
+      <div class="unmapped">
+        <strong>Lines we couldn't place in the schema (kept, not discarded):</strong>
+        <ul>{% for line in unmapped %}<li>{{ line }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+
+      <form hx-post="/intake/save" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy">
+        <input type="hidden" name="_pdf_token" value="{{ pdf_token }}" />
+        <input type="hidden" name="_pdf_name" value="{{ pdf_name }}" />
+        <fieldset class="meta">
+          <legend>Run settings</legend>
+          <label for="_source">Record source</label>
+          <select id="_source" name="_source">
+            {% for s in sources %}
+            <option value="{{ s.key }}" {% if s.key == default_source %}selected{% endif %}>{{ s.label }}</option>
+            {% endfor %}
+          </select>
+          <label for="_applicant_ref">Applicant reference</label>
+          <input id="_applicant_ref" name="_applicant_ref" placeholder="e.g. intake-2025-014" />
+          <label for="_chapter">Chapter</label>
+          <input id="_chapter" name="_chapter" value="PA" />
+        </fieldset>
+
+        {% for group in field_groups %}
+        <fieldset>
+          <legend>{{ group.label }}</legend>
+          {% for f in group.fields %}
+          <label for="{{ f.key }}">{{ f.label }}</label>
+          {% if f.multiline %}
+          <textarea id="{{ f.key }}" name="{{ f.key }}">{{ f.value }}</textarea>
+          {% elif f.key in datalists %}
+          <input id="{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" list="dl-{{ f.key }}" autocomplete="off" />
+          <datalist id="dl-{{ f.key }}">
+            {% for opt in datalists[f.key] %}<option value="{{ opt }}"></option>{% endfor %}
+          </datalist>
+          {% else %}
+          <input id="{{ f.key }}" name="{{ f.key }}" value="{{ f.value }}" />
+          {% endif %}
+          {% endfor %}
+        </fieldset>
+        {% endfor %}
+
+        <button type="submit">Save to case list</button>
+        <span id="busy" class="htmx-indicator">&nbsp;working&hellip;</span>
+      </form>
+
+      <section id="result"></section>
+    </div>
+  </div>
+</body>
+</html>

@@ -135,7 +135,22 @@
       </p>
       {% include "_record_status.html" %}
     </section>
+
+    {% if case.has_pdf %}
+    <section class="block">
+      <h3>4. Original intake PDF</h3>
+      <p class="intake-note">
+        The intake document this case file was prefilled from is retained here as the
+        verification surface. The form above is a structured reading of it &mdash; check it
+        against the original below.
+      </p>
+      <iframe src="/cases/submitted/{{ case.case_id }}/pdf"
+        title="Original intake PDF{% if case.pdf_original_name %}: {{ case.pdf_original_name }}{% endif %}"
+        style="width:100%; height:32rem; border:1px solid var(--line); border-radius:6px; background:#333;"></iframe>
+    </section>
+    {% endif %}
     {% endif %}
   </main>
 </body>
 </html>
+

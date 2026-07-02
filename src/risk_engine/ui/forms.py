@@ -39,6 +39,11 @@ _STATUS_DISPLAY: dict[RecordSearchStatus, tuple[str, str]] = {
 SOURCE_FIELD = "_source"
 APPLICANT_REF_FIELD = "_applicant_ref"
 CHAPTER_FIELD = "_chapter"
+#: Carries the upload token of a prefilled PDF from the compare view through save,
+#: so the original PDF can be promoted into the case store (spec v3 point 1).
+PDF_TOKEN_FIELD = "_pdf_token"
+#: Carries the original uploaded filename alongside the token, for display only.
+PDF_NAME_FIELD = "_pdf_name"
 
 
 #: Human label + one-line description per schema-checkable FlagCategory. Keyed by
@@ -247,6 +252,40 @@ def intake_datalists(store) -> dict[str, list[str]]:
     return out
 
 
+def prefilled_form_groups(intake) -> list[dict]:
+    """Editable intake-form groups pre-populated from a parsed PDF (spec v3 point 1).
+
+    Same shape as :func:`form_field_groups` (so the compare view renders identical
+    inputs) but each field carries the ``value`` extracted from the uploaded PDF,
+    ready for the reviewer to confirm or correct against the original shown beside
+    it. Blank where nothing was extracted — never invented.
+    """
+    groups: list[dict] = []
+    for category in IntakeCategory:
+        specs = [f for f in near_universal_fields() if f.category is category]
+        if not specs:
+            continue
+        fields = []
+        for spec in specs:
+            item = intake.get(spec.key)
+            fields.append(
+                {
+                    "key": spec.key,
+                    "label": spec.label,
+                    "multiline": spec.key in _MULTILINE_KEYS,
+                    "value": item.value if item else "",
+                }
+            )
+        groups.append(
+            {
+                "category": category.value,
+                "label": _pretty(category.value),
+                "fields": fields,
+            }
+        )
+    return groups
+
+
 def parse_intake_form(form: Mapping[str, str]) -> tuple[dict[str, str], dict[str, str]]:
     """Split a submitted form into (schema raw_fields, meta).
 
@@ -430,6 +469,8 @@ def case_file_view(case_file) -> dict:
         "linked_record_count": case_file.linked_record_count,
         "retrieval_error": case_file.retrieval_error,
         "retrieved_at": case_file.retrieved_at,
+        "has_pdf": case_file.has_pdf,
+        "pdf_original_name": case_file.pdf_original_name,
         "intake_form": intake_form_view(case_file.to_intake()),
         "unmapped": list(case_file.unmapped),
     }

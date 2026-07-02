@@ -29,6 +29,14 @@ from .intake.record import IntakeRecord
 #: Where submitted case files are persisted by default (JSON Lines).
 DEFAULT_CASE_FILE_STORE_PATH: Path = settings.processed_dir / "case_files.jsonl"
 
+#: Where the original uploaded intake PDFs are retained, one ``{case_id}.pdf`` per
+#: saved case file (spec v3 point 1: the PDF is kept as the verification surface).
+DEFAULT_CASE_PDF_DIR: Path = settings.processed_dir / "case_pdfs"
+
+#: Where freshly uploaded PDFs live between upload and save, keyed by an opaque
+#: token, until the reviewer saves and they are promoted into the case store.
+DEFAULT_INTAKE_STAGING_DIR: Path = settings.processed_dir / "intake_uploads"
+
 #: Provenance stamped on every row: this store is submitted-intake only.
 PROVENANCE_SUBMITTED = "submitted_intake"
 
@@ -102,6 +110,8 @@ class CaseFile:
     record_searches: list[dict] = field(default_factory=list)
     retrieval_error: str = ""
     retrieved_at: str = ""
+    pdf_stored: bool = False
+    pdf_original_name: str = ""
 
     @property
     def name(self) -> str:
@@ -153,6 +163,11 @@ class CaseFile:
     def linked_record_count(self) -> int:
         """How many searched record types actually returned a document."""
         return sum(1 for r in self.record_searches if r.get("status") != "not_found")
+
+    @property
+    def has_pdf(self) -> bool:
+        """Whether the original uploaded intake PDF is retained with this file."""
+        return self.pdf_stored
 
     def to_intake(self) -> IntakeRecord:
         """Rebuild the structured intake this case file was saved from."""
@@ -250,6 +265,76 @@ def update_case_file(
                 return case_file
     return None
 
+
+#: Handles are our own opaque ids (``CF-<hex>`` case ids, uuid hex tokens); this
+#: allowlist keeps a caller-supplied id from escaping its directory (path traversal).
+_SAFE_HANDLE_RE = re.compile(r"^[A-Za-z0-9-]{1,64}$")
+
+#: PDF magic bytes — an uploaded file must start with these to be stored.
+_PDF_MAGIC = b"%PDF-"
+
+
+def _safe_handle(handle: str) -> str:
+    if not _SAFE_HANDLE_RE.match(handle or ""):
+        raise ValueError(f"unsafe file handle: {handle!r}")
+    return handle
+
+
+def looks_like_pdf(data: bytes) -> bool:
+    """True if the bytes begin with the PDF magic marker."""
+    return data[:5] == _PDF_MAGIC
+
+
+def case_pdf_path(case_id: str, *, base_dir: str | Path | None = None) -> Path:
+    """Path of the retained original PDF for a saved case file."""
+    base = Path(base_dir) if base_dir is not None else DEFAULT_CASE_PDF_DIR
+    return base / f"{_safe_handle(case_id)}.pdf"
+
+
+def staged_pdf_path(token: str, *, base_dir: str | Path | None = None) -> Path:
+    """Path of an uploaded-but-not-yet-saved PDF, keyed by its upload token."""
+    base = Path(base_dir) if base_dir is not None else DEFAULT_INTAKE_STAGING_DIR
+    return base / f"{_safe_handle(token)}.pdf"
+
+
+def _write_bytes(path: Path, data: bytes) -> Path:
+    """Atomically write bytes to ``path`` (parent created as needed)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+    return path
+
+
+def save_staged_pdf(
+    token: str,
+    data: bytes,
+    *,
+    base_dir: str | Path | None = None,
+) -> Path:
+    """Persist an uploaded PDF to the staging area under ``token``."""
+    return _write_bytes(staged_pdf_path(token, base_dir=base_dir), data)
+
+
+def promote_staged_pdf(
+    token: str,
+    case_id: str,
+    *,
+    staging_dir: str | Path | None = None,
+    pdf_dir: str | Path | None = None,
+) -> bool:
+    """Move a staged upload into the case store as ``{case_id}.pdf``.
+
+    Returns ``True`` when a staged file existed and was promoted, ``False`` when
+    there was nothing to promote (e.g. no PDF was uploaded for this intake).
+    """
+    src = staged_pdf_path(token, base_dir=staging_dir)
+    if not src.exists():
+        return False
+    dst = case_pdf_path(case_id, base_dir=pdf_dir)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(src, dst)
+    return True
 
 
 class CaseFileStore:

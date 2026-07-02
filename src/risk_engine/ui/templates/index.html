@@ -31,6 +31,14 @@
       padding: .55rem .9rem; border-bottom: 3px solid transparent; }
     nav.tabs a:hover { color: #fff; }
     nav.tabs a.active { color: #fff; border-bottom-color: #4a90d9; }
+    section.upload { margin: 1.25rem 1.5rem 0; padding: .9rem 1.1rem; background: #eef4fb;
+      border: 1px solid #cfe0f2; border-radius: 8px; }
+    section.upload form { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: 0; }
+    section.upload strong { font-size: .9rem; }
+    section.upload input[type=file] { flex: 0 1 auto; width: auto; }
+    section.upload button { background: #1b5e20; }
+    section.upload button:hover { background: #2e7d32; }
+    section.upload .hint { flex-basis: 100%; font-size: .78rem; color: #555; margin-top: .1rem; }
   </style>
 </head>
 <body>
@@ -43,6 +51,16 @@
     <a href="/cases">Exoneration cases</a>
     <a href="/analytics">Analytics</a>
   </nav>
+  <section class="upload">
+    <form action="/intake/upload" method="post" enctype="multipart/form-data">
+      <strong>Start from an intake PDF:</strong>
+      <input type="file" name="pdf" accept="application/pdf" required />
+      <button type="submit">Upload &amp; prefill</button>
+      <span class="hint">We extract the text offline and open a side-by-side view so you can confirm
+        every field against the original PDF. Nothing is invented &mdash; or just fill the form
+        manually below.</span>
+    </form>
+  </section>
   <main>
     <form hx-post="/flag" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy">
       <fieldset class="meta">
