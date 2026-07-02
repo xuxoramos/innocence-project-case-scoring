@@ -13,6 +13,7 @@ from .bulk_courtlistener import (
     resolve_latest_snapshot,
 )
 from .courtlistener import PA_APPELLATE_COURTS, CourtListenerSource
+from .demo_marvel import DemoMarvelSource
 from .pittsburgh import AlleghenyCountySource
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "list_sources",
     "AlleghenyCountySource",
     "CourtListenerSource",
+    "DemoMarvelSource",
     "PA_APPELLATE_COURTS",
     "BulkCourtListenerMatcher",
     "download_bulk_snapshots",

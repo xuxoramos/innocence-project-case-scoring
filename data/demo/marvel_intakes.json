@@ -1,0 +1,44 @@
+{
+  "_comment": "Demo-only, de-identified intake payloads for the offline 'demo_marvel' record source. Each applicant alias is a Marvel civilian name whose surname matches the pseudonymized opinion caption in src/risk_engine/acquisition/demo_marvel.py, so retrieval finds the record and fires a DISCREDITED_FORENSIC_METHOD flag. Assert nothing about guilt or innocence. Not training/label data.",
+  "intakes": [
+    {
+      "_alias_of": "Commonwealth v. Chmiel (Pa.) — microscopic hair comparison, capital",
+      "_source": "demo_marvel",
+      "fields": {
+        "applicant_full_name": "Peter Parker",
+        "offense_convicted_of": "First-degree murder",
+        "conviction_jurisdiction": "Lackawanna County, PA",
+        "court_type": "state",
+        "date_of_conviction": "1984",
+        "sentence_received": "Death",
+        "claims_actual_innocence": "Yes"
+      }
+    },
+    {
+      "_alias_of": "Commonwealth v. Kunco (Pa. Super.) — bite-mark comparison",
+      "_source": "demo_marvel",
+      "fields": {
+        "applicant_full_name": "Anthony Stark",
+        "offense_convicted_of": "Aggravated sexual assault",
+        "conviction_jurisdiction": "Westmoreland County, PA",
+        "court_type": "state",
+        "date_of_conviction": "1991",
+        "sentence_received": "45 to 90 years",
+        "claims_actual_innocence": "Yes"
+      }
+    },
+    {
+      "_alias_of": "Ex parte Hightower (Tex. Crim. App.) — microscopic hair comparison, capital",
+      "_source": "demo_marvel",
+      "fields": {
+        "applicant_full_name": "Steven Rogers",
+        "offense_convicted_of": "Capital murder",
+        "conviction_jurisdiction": "Harris County, TX",
+        "court_type": "state",
+        "date_of_conviction": "1988",
+        "sentence_received": "Life",
+        "claims_actual_innocence": "Yes"
+      }
+    }
+  ]
+}
