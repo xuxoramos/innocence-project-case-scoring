@@ -5,10 +5,11 @@ Matches officials named in the case record against a
 disciplinary/misconduct records, and emits a role-specific misconduct flag for
 each match (prosecutor / judicial / police / expert-witness), citing the
 specific formal source as the flag's ``verification_source`` (README v2 Sections
-5.2 and 6.5). A record whose role cannot be classified is skipped rather than
-guessed. The registry is loaded once from the external officials data directory;
-if it is empty (the default when no records have been curated), this step simply
-produces no flags.
+5.2 and 6.5). A record with any other stated role lands in the
+``OTHER_OFFICIAL_MISCONDUCT`` bucket (spec v3 §3.3); only a record with no stated
+role at all is skipped rather than guessed. The registry is loaded once from the
+external officials data directory; if it is empty (the default when no records
+have been curated), this step simply produces no flags.
 """
 
 from __future__ import annotations

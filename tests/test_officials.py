@@ -120,16 +120,39 @@ def test_step_emits_flag_with_citation():
         ("Detective", FlagCategory.POLICE_MISCONDUCT),
         ("forensic analyst", FlagCategory.EXPERT_WITNESS_MISCONDUCT),
         ("medical examiner", FlagCategory.EXPERT_WITNESS_MISCONDUCT),
-        ("court reporter", None),
+        # Any other stated official role falls into the "other official" bucket
+        # rather than being dropped (spec v3 §3.3).
+        ("court reporter", FlagCategory.OTHER_OFFICIAL_MISCONDUCT),
+        ("child welfare caseworker", FlagCategory.OTHER_OFFICIAL_MISCONDUCT),
+        # A blank role is still skipped: nothing to cite, and guessing is the risk.
         ("", None),
+        ("   ", None),
     ],
 )
 def test_category_for_role(role, expected):
     assert category_for_role(role) is expected
 
 
-def test_step_skips_unclassifiable_role():
-    registry = NamedOfficialRegistry.from_records([_record(role="court reporter")])
+def test_step_flags_other_official_role():
+    registry = NamedOfficialRegistry.from_records([_record(role="child welfare caseworker")])
+    case = Case(case_id="O", jurisdiction="j")
+    case.documents.append(
+        Document(
+            doc_id="O1",
+            case_id="O",
+            needs_ocr=False,
+            normalized_text="The case was tried by Jane Q. Example for the state.",
+        )
+    )
+    case = NamedOfficialStep(registry=registry).run(case)
+    assert len(case.flags) == 1
+    assert case.flags[0].category is FlagCategory.OTHER_OFFICIAL_MISCONDUCT
+    # Still sourced from the formal record that travels with the flag.
+    assert case.flags[0].verification_source == _record(role="child welfare caseworker").citation
+
+
+def test_step_skips_role_less_record():
+    registry = NamedOfficialRegistry.from_records([_record(role="")])
     case = Case(case_id="O", jurisdiction="j")
     case.documents.append(
         Document(

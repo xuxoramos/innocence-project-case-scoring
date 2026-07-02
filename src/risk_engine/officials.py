@@ -51,15 +51,23 @@ _ROLE_KEYWORDS: tuple[tuple[tuple[str, ...], FlagCategory], ...] = (
 def category_for_role(role: str) -> FlagCategory | None:
     """Map a free-text official ``role`` to its misconduct category, or ``None``.
 
-    Returns ``None`` when the role does not match any known bucket — the caller
-    should then skip the record rather than guess, since misclassifying who
-    committed misconduct is exactly the defamation risk Section 6.5 guards against.
+    A specific keyword match (prosecutor / judge / police / forensic-analyst)
+    wins first. Any other **non-empty** role — the record is already a curated,
+    formally-sourced official, so the actor's official status is not in doubt —
+    falls into :data:`FlagCategory.OTHER_OFFICIAL_MISCONDUCT` rather than being
+    dropped (spec v3 §3.3: the "other official" bucket for actors outside the
+    four named roles, e.g. child-welfare or corrections staff). A blank role
+    returns ``None`` so the caller skips it: with no stated role there is nothing
+    to cite, and guessing one is exactly the defamation risk Section 6.5 guards
+    against. Extending the specific roles is a data edit to ``_ROLE_KEYWORDS``.
     """
-    text = (role or "").lower()
+    text = (role or "").strip().lower()
+    if not text:
+        return None
     for keywords, category in _ROLE_KEYWORDS:
         if any(kw in text for kw in keywords):
             return category
-    return None
+    return FlagCategory.OTHER_OFFICIAL_MISCONDUCT
 
 
 @dataclass(frozen=True)

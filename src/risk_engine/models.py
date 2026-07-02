@@ -24,7 +24,13 @@ class FlagCategory(str, enum.Enum):
     record (forensic literature / disciplinary or misconduct finding), the rest
     against directly observable facts in the case record. Official misconduct is
     split by role — prosecutor, judge, police, and forensic-analyst/expert — so
-    each can be calibrated against its own NRE factor column (Section 6.5).
+    each can be calibrated against its own NRE factor column (Section 6.5), plus
+    an ``OTHER_OFFICIAL_MISCONDUCT`` bucket for officials outside those four
+    roles (e.g. child-welfare or corrections staff) so a formally-sourced finding
+    is never dropped just because the actor doesn't fit a named role (spec v3
+    §3.3). The category set is intentionally data-driven and extensible: adding a
+    category is an enum edit, and routing a role to it is a data edit in
+    ``officials._ROLE_KEYWORDS`` — no flagger internals change.
     Cross-racial identification is not its own category — it is a
     ``WITNESS_ID_CIRCUMSTANCE`` flagged with an ``INFERRED`` basis (Section 6.4).
     """
@@ -34,6 +40,7 @@ class FlagCategory(str, enum.Enum):
     JUDICIAL_MISCONDUCT = "judicial_misconduct"
     POLICE_MISCONDUCT = "police_misconduct"
     EXPERT_WITNESS_MISCONDUCT = "expert_witness_misconduct"
+    OTHER_OFFICIAL_MISCONDUCT = "other_official_misconduct"
     INFORMANT_CIRCUMSTANCE = "informant_circumstance"
     WITNESS_ID_CIRCUMSTANCE = "witness_id_circumstance"
     EVIDENCE_PRESERVATION = "evidence_preservation"

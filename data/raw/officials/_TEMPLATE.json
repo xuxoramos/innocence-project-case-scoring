@@ -6,5 +6,13 @@
     "finding": "Brady violation found on direct appeal (illustrative, fictional)",
     "source": "Commonwealth v. Fictional, 000 A.0d 000 (Pa. Super. 0000) (EXAMPLE)",
     "aliases": ["J. Q. Example"]
+  },
+  {
+    "_comment": "Any role outside prosecutor / judge / police / forensic-analyst lands in the 'other official' bucket (still sourced from a formal record). Illustrative and fictional.",
+    "name": "Robin Q. Sample",
+    "role": "child welfare caseworker",
+    "finding": "Formal finding of fabricated interview notes (illustrative, fictional)",
+    "source": "State Dept. of Human Services, Case No. 0000 (EXAMPLE)",
+    "aliases": []
   }
 ]

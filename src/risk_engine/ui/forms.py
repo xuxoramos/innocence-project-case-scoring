@@ -73,6 +73,12 @@ FACTOR_DISPLAY: dict[str, tuple[str, str]] = {
         "Misconduct by a forensic analyst or expert witness, including misleading "
         "or fabricated testimony.",
     ),
+    FlagCategory.OTHER_OFFICIAL_MISCONDUCT.value: (
+        "Other official misconduct",
+        "Misconduct by an official outside the prosecutor / judge / police / "
+        "forensic-analyst roles (for example a child-welfare or corrections "
+        "official), sourced from a formal public record.",
+    ),
     FlagCategory.INFORMANT_CIRCUMSTANCE.value: (
         "Informant / false accusation",
         "A jailhouse or incentivized informant, or perjury / a knowingly false "
