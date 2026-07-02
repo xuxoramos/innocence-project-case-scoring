@@ -194,6 +194,7 @@
             <th>Element</th>
             <th>Basis</th>
             <th>Confidence</th>
+            <th>Descriptors</th>
             <th>Verification source</th>
             <th>Source passage</th>
           </tr>
@@ -207,6 +208,11 @@
             </td>
             <td>{{ f.basis }}</td>
             <td class="conf">{{ f.extraction_confidence }}</td>
+            <td>
+              {% if f.descriptors %}
+              {% for d in f.descriptors %}<div><b>{{ d.label }}:</b> {{ d.value }}</div>{% endfor %}
+              {% else %}&mdash;{% endif %}
+            </td>
             <td>{{ f.verification_source or "&mdash;" | safe }}</td>
             <td class="passage">{{ f.source_passage or "&mdash;" | safe }}</td>
           </tr>

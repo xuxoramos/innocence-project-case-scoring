@@ -104,6 +104,12 @@ class Flag:
     source_passage: str = ""
     inference_note: str | None = None
     verification_source: str | None = None
+    #: Grounded, per-element severity/frequency descriptors (spec v3 §3.4, point
+    #: 4): the forensic discreditation tier + citing authority, the official
+    #: misconduct type and its gravity, and the repeat-offender finding count.
+    #: Each is a labelled descriptor that stays attached to this one element and
+    #: is never summed into a case-level number (README v2 §3.1).
+    descriptors: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

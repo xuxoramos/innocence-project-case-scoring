@@ -5,6 +5,7 @@ from __future__ import annotations
 from risk_engine.config import settings
 from risk_engine.forensic import (
     FORENSIC_METHOD_REFERENCE,
+    TIER_MEANING,
     find_forensic_methods,
 )
 from risk_engine.models import Case, Document, FlagBasis, FlagCategory
@@ -24,6 +25,12 @@ def test_reference_entries_all_carry_a_source():
     for ref in FORENSIC_METHOD_REFERENCE:
         assert ref.source.strip()
         assert 0.0 < ref.confidence <= 1.0
+
+
+def test_every_reference_entry_carries_a_valid_tier_and_authority():
+    for ref in FORENSIC_METHOD_REFERENCE:
+        assert ref.tier in TIER_MEANING
+        assert ref.authority.strip()
 
 
 def test_finds_method_and_aliases():
@@ -52,6 +59,17 @@ def test_step_emits_flag_with_verification_source():
     assert flag.basis is FlagBasis.DIRECTLY_STATED
     assert flag.verification_source and "bite-mark comparison" in flag.verification_source
     assert "bite-mark comparison" in flag.source_passage
+
+
+def test_step_attaches_tier_descriptor():
+    case = _case_with("A forensic odontologist testified using bite-mark comparison.")
+    case = ForensicMethodStep().run(case)
+    flag = next(
+        f for f in case.flags if f.category is FlagCategory.DISCREDITED_FORENSIC_METHOD
+    )
+    assert flag.descriptors["discreditation_tier"] == "A"
+    assert flag.descriptors["tier_meaning"] == TIER_MEANING["A"]
+    assert flag.descriptors["citing_authority"].strip()
 
 
 def test_below_floor_method_is_suppressed():

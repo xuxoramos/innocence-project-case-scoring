@@ -64,6 +64,10 @@ class StoredFlag:
     extraction_confidence: float
     source_passage: str
     verification_source: str | None = None
+    #: Per-element severity/frequency descriptors (spec v3 §3.4, point 4), kept
+    #: as labelled facts and never summed. Defaults empty so rows persisted
+    #: before descriptors existed load unchanged.
+    descriptors: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -151,6 +155,7 @@ def stored_from_example(example: LabeledExample) -> StoredCase:
                     extraction_confidence=flag.extraction_confidence,
                     source_passage=" ".join(flag.source_passage.split()),
                     verification_source=flag.verification_source,
+                    descriptors=dict(flag.descriptors),
                 )
             )
     return StoredCase(

@@ -311,6 +311,35 @@ def parse_intake_form(form: Mapping[str, str]) -> tuple[dict[str, str], dict[str
     return raw_fields, meta
 
 
+# Human labels for the per-element severity/frequency descriptors (spec v3 §3.4,
+# point 4). Order here is the display order; unknown keys fall back to a
+# prettified key so a new descriptor never breaks the view.
+_DESCRIPTOR_LABELS: dict[str, str] = {
+    "discreditation_tier": "discreditation tier",
+    "tier_meaning": "tier meaning",
+    "citing_authority": "citing authority",
+    "misconduct_type": "misconduct type",
+    "type_gravity": "type gravity",
+    "repeat_findings": "formal findings on record",
+    "frequency_note": "frequency",
+}
+
+
+def _descriptor_view(descriptors: dict[str, str]) -> list[dict]:
+    """Order and label per-element descriptors for the templates.
+
+    Descriptors are labelled facts about the one element they hang off (a
+    forensic tier, a misconduct type/gravity, a repeat-offender count). They are
+    never combined into a case-level number (README v2 §3.1).
+    """
+    ordered = [k for k in _DESCRIPTOR_LABELS if k in descriptors]
+    ordered += [k for k in descriptors if k not in _DESCRIPTOR_LABELS]
+    return [
+        {"label": _DESCRIPTOR_LABELS.get(k, _pretty(k)), "value": descriptors[k]}
+        for k in ordered
+    ]
+
+
 def _flag_view(flag) -> dict:
     return {
         "basis": flag.basis.value,
@@ -320,6 +349,7 @@ def _flag_view(flag) -> dict:
         "source_passage": " ".join(flag.source_passage.split()),
         "inference_note": flag.inference_note,
         "verification_source": flag.verification_source,
+        "descriptors": _descriptor_view(flag.descriptors),
     }
 
 
@@ -416,6 +446,7 @@ def case_detail_view(case, ip_case=None) -> dict:
             "extraction_confidence": f"{f.extraction_confidence:.2f}",
             "verification_source": f.verification_source,
             "source_passage": " ".join((f.source_passage or "").split()),
+            "descriptors": _descriptor_view(f.descriptors),
         }
         for f in case.flags
     ]

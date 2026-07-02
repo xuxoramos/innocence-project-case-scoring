@@ -164,3 +164,57 @@ def test_step_skips_role_less_record():
     )
     case = NamedOfficialStep(registry=registry).run(case)
     assert case.flags == []
+
+
+def test_findings_count_marks_repeat_offender():
+    registry = NamedOfficialRegistry.from_records(
+        [
+            _record(finding="withheld exculpatory evidence in case A"),
+            _record(finding="withheld exculpatory evidence in case B"),
+            _record(name="Someone Else", finding="unrelated"),
+        ]
+    )
+    assert registry.findings_count("Jane Q. Example") == 2
+    assert registry.findings_count("jane q. example  ") == 2
+    assert registry.findings_count("Someone Else") == 1
+    assert registry.findings_count("Nobody") == 0
+
+
+def test_step_attaches_repeat_offender_frequency_descriptor():
+    registry = NamedOfficialRegistry.from_records(
+        [
+            _record(finding="withheld exculpatory evidence in case A"),
+            _record(finding="withheld exculpatory evidence in case B"),
+        ]
+    )
+    case = Case(case_id="O", jurisdiction="j")
+    case.documents.append(
+        Document(
+            doc_id="O1",
+            case_id="O",
+            needs_ocr=False,
+            normalized_text="The case was tried by Jane Q. Example for the state.",
+        )
+    )
+    case = NamedOfficialStep(registry=registry).run(case)
+    assert len(case.flags) == 1
+    descriptors = case.flags[0].descriptors
+    assert descriptors["repeat_findings"] == "2"
+    assert "repeat offender" in descriptors["frequency_note"]
+
+
+def test_single_finding_descriptor_is_not_repeat_offender():
+    registry = NamedOfficialRegistry.from_records([_record()])
+    case = Case(case_id="O", jurisdiction="j")
+    case.documents.append(
+        Document(
+            doc_id="O1",
+            case_id="O",
+            needs_ocr=False,
+            normalized_text="The case was tried by Jane Q. Example for the state.",
+        )
+    )
+    case = NamedOfficialStep(registry=registry).run(case)
+    descriptors = case.flags[0].descriptors
+    assert descriptors["repeat_findings"] == "1"
+    assert "repeat offender" not in descriptors["frequency_note"]

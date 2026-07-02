@@ -167,16 +167,52 @@ _LEXICON: tuple[_Lexeme, ...] = (
 
 # Pre-compile a word-boundary matcher per term so a term does not fire inside a
 # longer token (e.g. "single witness" must be a whole phrase).
-_COMPILED: tuple[tuple[_Lexeme, tuple[tuple[re.Pattern[str], float], ...]], ...] = tuple(
+_COMPILED: tuple[tuple[_Lexeme, tuple[tuple[re.Pattern[str], float, str], ...]], ...] = tuple(
     (
         lex,
         tuple(
-            (re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE), conf)
+            (re.compile(rf"\b{re.escape(term)}\b", re.IGNORECASE), conf, term)
             for term, conf in lex.terms
         ),
     )
     for lex in _LEXICON
 )
+
+
+# Misconduct *type* + *gravity* descriptor per lexeme term (spec v3 §3.4, point 4
+# / Appendix B). Types are the NRE "Government Misconduct and Convicting the
+# Innocent" (2020) categories; gravity reflects that fabrication and Brady
+# concealment rank graver than improper argument (§5.2). Only terms that map to
+# a specific type carry a descriptor — generic terms ("prosecutorial
+# misconduct", "police misconduct") and judicial-conduct terms are left
+# undescribed rather than forced into a type. These stay attached to the one
+# element and are never summed into a case-level number (README v2 §3.1).
+_FABRICATION = ("fabricating evidence", "aggravating (fabrication)")
+_BRADY = ("concealing exculpatory evidence (Brady)", "aggravating (Brady concealment)")
+_INTERROGATION = ("misconduct in interrogations", "serious")
+_PERJURY = ("perjury / false accusation", "serious")
+_FALSE_TESTIMONY = ("false or misleading testimony", "serious")
+_IMPROPER_ARGUMENT = ("improper argument at trial", "lesser (not fabrication or Brady)")
+
+_MISCONDUCT_TYPE: dict[str, tuple[str, str]] = {
+    "brady violation": _BRADY,
+    "withheld exculpatory": _BRADY,
+    "suppressed exculpatory": _BRADY,
+    "knowingly presented false": _PERJURY,
+    "knowingly used false": _PERJURY,
+    "improper closing argument": _IMPROPER_ARGUMENT,
+    "fabricated evidence": _FABRICATION,
+    "planted evidence": _FABRICATION,
+    "falsified police report": _FABRICATION,
+    "coerced confession": _INTERROGATION,
+    "coercive interrogation": _INTERROGATION,
+    "fabricated test results": _FABRICATION,
+    "falsified the analysis": _FABRICATION,
+    "fraudulent analysis": _FABRICATION,
+    "overstated the certainty": _FALSE_TESTIMONY,
+    "exaggerated the certainty": _FALSE_TESTIMONY,
+    "misrepresented the results": _FALSE_TESTIMONY,
+}
 
 
 class TabularStep(ProcessingStep):
@@ -188,19 +224,24 @@ class TabularStep(ProcessingStep):
     def run(self, case: Case) -> Case:
         text = " ".join(d.normalized_text or "" for d in case.documents)
         for lex, patterns in _COMPILED:
-            best: tuple[float, re.Match[str]] | None = None
-            for pattern, conf in patterns:
+            best: tuple[float, re.Match[str], str] | None = None
+            for pattern, conf, term in patterns:
                 match = pattern.search(text)
                 if match is None:
                     continue
                 if best is None or conf > best[0]:
-                    best = (conf, match)
+                    best = (conf, match, term)
             # Suppress weak / crime-type-only hits below the floor (README 6.3).
             if best is None or best[0] < settings.confidence_floor:
                 case.features[lex.label] = 0
                 continue
-            conf, match = best
+            conf, match, term = best
             case.features[lex.label] = 1
+            descriptors: dict[str, str] = {}
+            type_info = _MISCONDUCT_TYPE.get(term)
+            if type_info is not None:
+                descriptors["misconduct_type"] = type_info[0]
+                descriptors["type_gravity"] = type_info[1]
             case.flags.append(
                 Flag(
                     category=lex.category,
@@ -208,6 +249,7 @@ class TabularStep(ProcessingStep):
                     extraction_confidence=conf,
                     source_passage=sentence_around(text, match.start(), match.end()),
                     inference_note=lex.inference_note,
+                    descriptors=descriptors,
                 )
             )
         case.has_tabular = True

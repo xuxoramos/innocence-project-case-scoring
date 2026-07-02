@@ -86,3 +86,34 @@ def test_misconduct_circumstances_flag_per_role():
         # Text-detected misconduct describes the record; the registry supplies names.
         assert flag.verification_source is None
 
+
+def test_misconduct_type_descriptor_brady_is_aggravating():
+    case = _case_with("The opinion found the prosecutor withheld exculpatory evidence.")
+    flag = _flag(case, FlagCategory.PROSECUTOR_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "concealing exculpatory evidence (Brady)"
+    assert "aggravating" in flag.descriptors["type_gravity"]
+
+
+def test_misconduct_type_descriptor_fabrication():
+    case = _case_with("Police had planted evidence at the crime scene.")
+    flag = _flag(case, FlagCategory.POLICE_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "fabricating evidence"
+    assert "aggravating" in flag.descriptors["type_gravity"]
+
+
+def test_improper_argument_ranks_lesser_than_fabrication():
+    case = _case_with("The prosecutor made an improper closing argument to the jury.")
+    flag = _flag(case, FlagCategory.PROSECUTOR_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "improper argument at trial"
+    assert "lesser" in flag.descriptors["type_gravity"]
+
+
+def test_non_misconduct_flag_carries_no_type_descriptor():
+    case = _case_with("The sole eyewitness recanted years later.")
+    flag = _flag(case, FlagCategory.WITNESS_ID_CIRCUMSTANCE)
+    assert flag is not None
+    assert "misconduct_type" not in flag.descriptors
+

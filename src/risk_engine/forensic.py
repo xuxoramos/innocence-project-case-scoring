@@ -28,11 +28,25 @@ class ForensicMethodRef:
     status: str  # e.g. "discredited", "scientifically limited"
     source: str  # specific, checkable citation independent of any case outcome
     confidence: float  # extraction confidence to assign when matched
+    tier: str = ""  # discreditation tier: "A", "B", or "C" (see TIER_MEANING)
+    authority: str = ""  # the body/report whose ruling places this method in its tier
     aliases: tuple[str, ...] = ()  # phrasings to match in case text
 
     @property
     def match_terms(self) -> tuple[str, ...]:
         return (self.method, *self.aliases)
+
+
+#: What each discreditation tier means (spec v3 §3.4, point 4 / Appendix A). The
+#: tier is a per-element descriptor grounded in a named citing authority, never a
+#: numeric score: Tier A methods have been formally invalidated or abandoned,
+#: Tier B methods are unvalidated per NAS 2009 / PCAST 2016 but still in use, and
+#: Tier C methods are contested or evolving in the literature.
+TIER_MEANING: dict[str, str] = {
+    "A": "formally invalidated or abandoned",
+    "B": "unvalidated per NAS 2009 / PCAST 2016 but still in use",
+    "C": "contested or evolving in the literature",
+}
 
 
 #: Curated reference table. Citations point at the case-independent scientific
@@ -47,6 +61,8 @@ FORENSIC_METHOD_REFERENCE: tuple[ForensicMethodRef, ...] = (
             "for identifying a source from bitemarks."
         ),
         confidence=0.9,
+        tier="A",
+        authority="Texas Forensic Science Commission moratorium recommendation (2016); NAS 2009",
         aliases=("bite-mark", "bite mark", "bitemark", "odontology comparison"),
     ),
     ForensicMethodRef(
@@ -58,6 +74,8 @@ FORENSIC_METHOD_REFERENCE: tuple[ForensicMethodRef, ...] = (
             "testimony in the overwhelming majority of audited trials."
         ),
         confidence=0.9,
+        tier="A",
+        authority="FBI/DOJ microscopic-hair review (2015); NAS 2009",
         aliases=("hair microscopy", "microscopic hair", "hair comparison microscopy"),
     ),
     ForensicMethodRef(
@@ -68,6 +86,8 @@ FORENSIC_METHOD_REFERENCE: tuple[ForensicMethodRef, ...] = (
             "the supporting inferences; the FBI discontinued the technique in 2005."
         ),
         confidence=0.9,
+        tier="A",
+        authority="FBI abandonment of the technique (2005); NAS 2004",
         aliases=("comparative bullet-lead", "bullet lead analysis", "CBLA"),
     ),
     ForensicMethodRef(
@@ -80,6 +100,8 @@ FORENSIC_METHOD_REFERENCE: tuple[ForensicMethodRef, ...] = (
             "accepted standard."
         ),
         confidence=0.85,
+        tier="C",
+        authority="NFPA 921 fire-investigation standard",
         aliases=("pour pattern", "burn indicator", "alligatoring", "crazed glass"),
     ),
     ForensicMethodRef(
@@ -91,6 +113,8 @@ FORENSIC_METHOD_REFERENCE: tuple[ForensicMethodRef, ...] = (
             "reviews have flagged it as not scientifically settled."
         ),
         confidence=0.8,
+        tier="C",
+        authority="Contested biomechanical and medical literature",
         aliases=("shaken baby", "abusive head trauma triad"),
     ),
     ForensicMethodRef(
@@ -102,7 +126,59 @@ FORENSIC_METHOD_REFERENCE: tuple[ForensicMethodRef, ...] = (
             "appropriately-designed study with a non-trivial error rate."
         ),
         confidence=0.7,
+        tier="B",
+        authority="PCAST 2016; NAS 2009",
         aliases=("toolmark identification", "firearm identification", "ballistic match"),
+    ),
+    ForensicMethodRef(
+        method="footwear / tire impression comparison",
+        status="scientifically limited",
+        source=(
+            "PCAST 2016 found footwear/impression source-identification claims "
+            "lacked established foundational validity for individualization."
+        ),
+        confidence=0.7,
+        tier="B",
+        authority="PCAST 2016",
+        aliases=("footwear impression", "shoe print comparison", "tire impression"),
+    ),
+    ForensicMethodRef(
+        method="complex DNA mixture interpretation",
+        status="scientifically limited",
+        source=(
+            "PCAST 2016 found interpretation of complex DNA mixtures (multiple "
+            "contributors, low template) foundationally valid only within narrow, "
+            "validated bounds, and unreliable outside them."
+        ),
+        confidence=0.65,
+        tier="B",
+        authority="PCAST 2016",
+        aliases=("complex dna mixture", "mixed dna interpretation", "low template dna"),
+    ),
+    ForensicMethodRef(
+        method="bloodstain pattern analysis",
+        status="scientifically contested",
+        source=(
+            "NAS 2009 Ch. 5 found bloodstain-pattern analysis opinions more "
+            "subjective than scientific and the uncertainties not well understood."
+        ),
+        confidence=0.7,
+        tier="C",
+        authority="NAS 2009",
+        aliases=("bloodstain pattern", "blood spatter analysis", "blood-spatter"),
+    ),
+    ForensicMethodRef(
+        method="dog-scent identification",
+        status="scientifically contested",
+        source=(
+            "Scent-lineup / dog-scent identification has repeatedly figured in "
+            "documented wrongful-conviction casework and lacks validated error "
+            "rates (Innocence Project casework)."
+        ),
+        confidence=0.7,
+        tier="C",
+        authority="Innocence Project casework",
+        aliases=("scent lineup", "dog scent", "scent identification"),
     ),
 )
 

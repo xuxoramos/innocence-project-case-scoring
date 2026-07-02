@@ -122,6 +122,18 @@ class NamedOfficialRegistry:
     def __len__(self) -> int:
         return len(self.records)
 
+    def findings_count(self, name: str) -> int:
+        """Number of independent formal findings on record for a named official.
+
+        The frequency half of the misconduct descriptor (spec v3 §3.4, point 4):
+        each :class:`OfficialRecord` is one formally-sourced finding, so more than
+        one record for the same canonical name marks a repeat offender. Matching
+        is case-insensitive on the trimmed name. This is a count of documented
+        findings, never a score, and it stays attached to that official's flag.
+        """
+        key = name.strip().lower()
+        return sum(1 for record in self.records if record.name.strip().lower() == key)
+
     def match(self, text: str) -> list[OfficialMatch]:
         """Find registry officials named in ``text`` (first hit per official)."""
         seen: set[str] = set()

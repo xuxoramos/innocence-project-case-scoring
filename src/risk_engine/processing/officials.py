@@ -37,6 +37,14 @@ class NamedOfficialStep(ProcessingStep):
             category = category_for_role(match.record.role)
             if category is None:
                 continue
+            count = self.registry.findings_count(match.record.name)
+            descriptors = {
+                "repeat_findings": str(count),
+                "frequency_note": (
+                    f"{count} independent formal finding(s) on record for this named official"
+                    + (" (repeat offender)" if count > 1 else "")
+                ),
+            }
             case.flags.append(
                 Flag(
                     category=category,
@@ -44,6 +52,7 @@ class NamedOfficialStep(ProcessingStep):
                     extraction_confidence=_NAME_MATCH_CONFIDENCE,
                     source_passage=sentence_around(text, match.start, match.end),
                     verification_source=match.record.citation,
+                    descriptors=descriptors,
                 )
             )
         return case

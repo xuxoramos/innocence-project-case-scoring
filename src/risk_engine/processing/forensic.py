@@ -11,7 +11,7 @@ verified against the case-independent literature, never against case outcomes.
 from __future__ import annotations
 
 from ..config import settings
-from ..forensic import find_forensic_methods
+from ..forensic import TIER_MEANING, find_forensic_methods
 from ..models import Case, Flag, FlagBasis, FlagCategory
 from .base import ProcessingStep, sentence_around
 
@@ -27,6 +27,11 @@ class ForensicMethodStep(ProcessingStep):
         for hit in find_forensic_methods(text):
             if hit.ref.confidence < settings.confidence_floor:
                 continue
+            descriptors: dict[str, str] = {}
+            if hit.ref.tier:
+                descriptors["discreditation_tier"] = hit.ref.tier
+                descriptors["tier_meaning"] = TIER_MEANING.get(hit.ref.tier, "")
+                descriptors["citing_authority"] = hit.ref.authority
             case.flags.append(
                 Flag(
                     category=FlagCategory.DISCREDITED_FORENSIC_METHOD,
@@ -34,6 +39,7 @@ class ForensicMethodStep(ProcessingStep):
                     extraction_confidence=hit.ref.confidence,
                     source_passage=sentence_around(text, hit.start, hit.end),
                     verification_source=f"{hit.ref.method} ({hit.ref.status}): {hit.ref.source}",
+                    descriptors=descriptors,
                 )
             )
         return case
