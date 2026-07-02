@@ -88,3 +88,30 @@ def test_app_routes_smoke():
     assert resp.status_code == 200
     assert "intake-9" in resp.text
     assert "Record searches" in resp.text
+
+
+def test_basic_auth_enforced_only_when_configured(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.ui import app as app_module
+
+    client = TestClient(app_module.app)
+
+    # Unconfigured (default): open, no credentials required.
+    assert client.get("/").status_code == 200
+
+    # Configured: a request without/with wrong credentials is rejected, and the
+    # 401 carries a WWW-Authenticate challenge so browsers prompt for login.
+    monkeypatch.setattr(app_module, "_AUTH_USER", "reviewer")
+    monkeypatch.setattr(app_module, "_AUTH_PASSWORD", "s3cret")
+
+    unauth = client.get("/")
+    assert unauth.status_code == 401
+    assert unauth.headers["WWW-Authenticate"].startswith("Basic ")
+    assert client.get("/", auth=("reviewer", "wrong")).status_code == 401
+
+    # Correct credentials pass through.
+    assert client.get("/", auth=("reviewer", "s3cret")).status_code == 200
+

@@ -11,11 +11,14 @@ Run: ``python -m risk_engine.ui`` (starts uvicorn on http://127.0.0.1:8000).
 
 from __future__ import annotations
 
+import base64
+import os
+import secrets
 from pathlib import Path
 from urllib.parse import urlencode
 from uuid import uuid4
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -62,6 +65,33 @@ _MAX_PDF_BYTES = 25 * 1024 * 1024  # reject oversized uploads before reading the
 app = FastAPI(title="Intake Flagging POC")
 app.mount("/static", StaticFiles(directory=_HERE / "static"), name="static")
 templates = Jinja2Templates(directory=str(_HERE / "templates"))
+
+# Optional HTTP Basic auth. It is enforced only when BOTH credentials are
+# supplied via the environment (i.e. in a deployment). Local/dev runs leave
+# these unset and stay open, so nothing changes for `python -m risk_engine.ui`.
+_AUTH_USER = os.environ.get("RISK_ENGINE_AUTH_USER") or ""
+_AUTH_PASSWORD = os.environ.get("RISK_ENGINE_AUTH_PASSWORD") or ""
+
+
+@app.middleware("http")
+async def _basic_auth(request: Request, call_next):
+    if _AUTH_USER and _AUTH_PASSWORD:
+        header = request.headers.get("Authorization", "")
+        authorized = False
+        if header.startswith("Basic "):
+            try:
+                user, _, password = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+            except (ValueError, UnicodeDecodeError):
+                user = password = ""
+            authorized = secrets.compare_digest(user, _AUTH_USER) and secrets.compare_digest(
+                password, _AUTH_PASSWORD
+            )
+        if not authorized:
+            return Response(
+                status_code=401,
+                headers={"WWW-Authenticate": 'Basic realm="Intake Flagging POC"'},
+            )
+    return await call_next(request)
 
 
 def _source_options() -> list[dict]:
