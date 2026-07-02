@@ -277,6 +277,127 @@ repeated misconduct is — are already quantified by authoritative sources.
 
 ---
 
+## 8. System Architecture (data flow)
+
+The engine moves one intake from questionnaire to attorney-facing packet through the
+steps below. Each extraction stage records its own confidence, and the individual flags
+are **never combined into a case-level score** (README §3.1).
+
+```mermaid
+flowchart TD
+    A["Incoming intake questionnaire<br/>(handwritten or scanned)"] --> B["OCR + structuring layer<br/>confidence score per field"]
+    B --> C["Structured intake record<br/>(common schema, README §5.1)"]
+    C --> D["Automated public-record retrieval<br/>(Allegheny County, where digitized)"]
+    D --> E["Element-level extraction<br/>confidence score per element"]
+    E --> F1["Forensic method flags"]
+    E --> F2["Named-official history flags"]
+    E --> F3["Witness / ID circumstance flags"]
+    E --> F4["Evidence-preservation flags"]
+    F1 --> G["Individual flags, each with source passage,<br/>confidence, and context<br/>(NEVER combined into a score)"]
+    F2 --> G
+    F3 --> G
+    F4 --> G
+    G --> H["Structured case packet<br/>for attorney review"]
+```
+
+Component mapping (code):
+
+- **OCR + structuring** — `processing/ocr.py` (`OCRStep`, pytesseract, degrades gracefully),
+  `processing/text.py` (`TextNormalizationStep`), `intake/structuring.py` (`structure_intake`).
+- **Structured intake record** — `intake/record.py` (`IntakeRecord`), `intake/schema.py`
+  (Common Intake Schema).
+- **Public-record retrieval** — `retrieval.py` (`build_packet_for_intake`, name +
+  conviction-year matching), `acquisition/` sources (CourtListener REST + offline bulk).
+- **Element-level extraction** — `processing/tabular.py`, `processing/forensic.py`,
+  `processing/determinative.py`, `processing/officials.py`; per-element confidences
+  calibrated by `calibration.py` (`CalibrationStep`).
+- **Case packet** — `packet.py` (`assemble_packet`), rendered by `ui/` (FastAPI + Jinja2 + htmx).
+
+---
+
+## 9. Reproducing the POC
+
+The repository ships the two inputs the pipeline needs: the code, and a snapshot
+of the National Registry of Exonerations at
+`data/raw/exonerations/fullcsv.csv`. It also ships the artifact those inputs
+produce — the browse/analytics **case store** at
+`data/processed/case_store.jsonl` (4,311 confirmed exonerations; 4,278 linked to
+a public court record, 33 gaps per README §6.6). The store is a *derived cache*,
+not an input: you can use the shipped copy, or regenerate it yourself. The
+learned per-element **confidence table** derived from that store
+(`data/processed/calibration.json`) ships alongside it and is applied to every
+intake automatically.
+
+### 9.1 Install
+
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install -e '.[acquisition]'   # 'acquisition' pulls in requests + pandas
+```
+
+### 9.2 Use the shipped case store (fastest)
+
+Nothing to do — `data/processed/case_store.jsonl` is already in the clone. Launch
+the browse UI or run flagging directly against it.
+
+### 9.3 Regenerate the case store
+
+There are two backfill paths; both read the shipped NRE snapshot and write the
+same `data/processed/case_store.jsonl`.
+
+**API path** — links each exoneration to a court record via the CourtListener
+REST API. No large download, but it is network-bound and rate-limited. Set a free
+token first:
+
+```bash
+export COURTLISTENER_API_TOKEN=...   # from courtlistener.com
+risk-engine backfill                 # add --state / --county to scope
+```
+
+**Bulk path** — links records from offline CourtListener quarterly snapshots
+(no API, no rate limit). This is how the shipped store was built. It needs the
+snapshot download (~54 GB compressed for opinions), ~200 GB of scratch space to
+stream through, and several hours of compute:
+
+```bash
+risk-engine bulk-download            # → data/raw/courtlistener_bulk/
+risk-engine backfill --bulk          # streams the snapshots, writes the store
+```
+
+Both paths resume by default (already-stored cases are skipped); pass
+`--no-resume` to rebuild from scratch. Rows that find no matching court record
+are written as **gaps** (README §6.6), never as clean/negative results.
+
+### 9.4 Refresh the confidence table
+
+The per-element confidence table is derived from the store, offline and in
+seconds. Re-run it whenever the store is regenerated:
+
+```bash
+risk-engine calibrate --from-store   # writes data/processed/calibration.json
+```
+
+Each value is that element's precision against NRE ground truth over the matched
+cases (never a combined case score, per README §3.1). Categories that fire below
+the confidence floor are still surfaced at their honest low confidence, not
+suppressed.
+
+### 9.5 Innocence Project overlay
+
+The store is sourced from the **National Registry of Exonerations**, which tracks
+*every* US exoneration regardless of who secured it. To distinguish the subset the
+**Innocence Project** won, the browse UI joins each stored case against the IP's
+public case list (`data/raw/innocence_project/all_cases.json`, scraped from
+<https://innocenceproject.org/all-cases/>) by applicant name **and** conviction
+state. Matches carry an `IP` badge and an "Innocence Project" filter in `/cases`.
+
+The join is applied on load, so it survives store regeneration and needs no build
+step. It is deliberately conservative: name and state must agree, and roster
+entries with no store match (recent or name-changed exonerees the NRE snapshot
+predates) are simply left untagged — an honest gap, never a fabricated match.
+
+---
+
 ## Appendix A — Forensic discipline discreditation tiers (seed)
 
 | Discipline | Tier | Citing authority |

@@ -96,34 +96,17 @@ A second approach proposed addressing the training-data bias above (Section 3.1)
 
 ---
 
-## 5. System Architecture
+## 5. How the Tool Works
 
-```
-[Incoming Intake Questionnaire — handwritten/scanned]
-        │
-        ▼
-[OCR + Structuring Layer] ──► confidence score per field
-        │
-        ▼
-[Structured Intake Record] (common schema, Section 5.1)
-        │
-        ▼
-[Automated Public Record Retrieval] (Allegheny County, where digitized)
-        │
-        ▼
-[Element-Level Extraction] ──► confidence score per element
-        │
-        ├──► [Forensic Method Flags]   (checked against literature/disciplinary record, Section 5.2)
-        ├──► [Named Official Flags]    (checked against disciplinary/misconduct record, Section 5.2)
-        ├──► [Witness/ID Circumstance Flags]
-        └──► [Evidence Preservation Flags]
-        │
-        ▼
-[Individual Flags, Each With Source Passage + Confidence — NEVER combined into a score]
-        │
-        ▼
-[Structured Case Packet for Attorney Review]
-```
+The tool moves a single incoming intake request through five plain steps and produces a structured packet for an attorney to read. It never collapses that packet into a score.
+
+1. **The intake arrives.** An incarcerated person's completed questionnaire comes in, usually handwritten or scanned.
+2. **The tool reads and structures it.** It converts the questionnaire into a consistent, readable format, and records how confident it is in each field it read — so a reviewer can see where the reading was clean and where it was uncertain.
+3. **It pulls matching public records.** Where Allegheny County court records have been digitized, it retrieves the ones that match the applicant, and states plainly which expected records it looked for but could not find.
+4. **It flags individual elements.** Against those records it raises specific, separate flags — a discredited forensic method, a named official with a documented history, a witness-identification circumstance, an evidentiary gap — each shown with the exact passage it came from and its own confidence.
+5. **It assembles a case packet.** The flags are grouped by type and handed to the attorney, each standing on its own, never summed into a single judgment.
+
+*A technical data-flow diagram of these steps, along with all setup and implementation detail, lives in the companion specification at `docs/spec-v3-triage-assistant.md`.*
 
 ### 5.1 Common Intake Schema
 
@@ -158,7 +141,23 @@ Note what's *not* in this table: nothing here requires comparing the case to a s
 
 **Remaining limitation, stated plainly:** this resolves the *training-bias* problem but does not make the system complete. A case can be wrongful without tripping any of these flags (e.g., a wrongful conviction resting on a witness or official with no documented history of problems, using a forensic method never formally discredited). The system catches *documented, known* failure patterns. It does not catch — and does not claim to catch — wrongful convictions outside those patterns. This is a narrower, more honest claim than the original system made, and it should stay narrow rather than be expanded to imply broader coverage.
 
-### 5.3 Validation Approach for Innocence Project Case Data
+### 5.3 The Context Each Flag Carries
+
+A flag is more useful when it says not just *that* something is present, but *how much weight the established record already gives it*. Where the tool can determine this from an authoritative source that has nothing to do with the individual defendant's guilt or innocence, it attaches a short piece of context to the individual flag. As with everything else, this context stays attached to that one flag and is never added up into a score.
+
+- **How discredited a forensic method is.** A flagged method is placed in one of three plainly labeled tiers, each tied to the authority that discredited it: methods that have been *formally invalidated or abandoned* (for example, comparative bullet-lead analysis, which the FBI abandoned in 2005, and microscopic hair comparison, which the FBI and Department of Justice found flawed in over 90% of the cases they reviewed in 2015); methods a scientific body found *unvalidated but that courts still use* (the 2009 National Academy of Sciences report and the 2016 PCAST report reached this conclusion for firearms/tool-mark, footwear, and complex DNA-mixture analysis); and methods that are *contested or still evolving* in the literature (pre-1992 arson indicators, the shaken-baby hypothesis, bloodstain-pattern analysis, dog-scent evidence). The tier always names its source, so a reviewer can check it.
+
+- **What kind of official misconduct it is, and how grave.** The misconduct is described by type, using the five categories from the National Registry of Exonerations' study of government misconduct in wrongful convictions: witness tampering, misconduct in interrogations, fabricating evidence, concealing exculpatory evidence in violation of *Brady*, and perjury or false accusation at trial. Fabrication and *Brady* concealment are marked as the gravest; ordinary trial missteps such as an improper closing argument are marked separately as less serious. The specific wording the tool recognizes was drawn from the language courts actually use across a large body of published opinions, so it tracks how misconduct is really described rather than a vocabulary invented for the tool.
+
+- **Whether a named official is a repeat.** When a flag concerns a specific named prosecutor, judge, or analyst, and the tool holds more than one independent, formally documented finding against that same person, it notes the count — a reviewer sees "three separate documented findings," not a vague reputation.
+
+- **How serious the underlying case is.** Where the offense is known, the flag carries the seriousness of the conviction (for example, a homicide or capital case versus a lesser offense), because misconduct concentrates in the most serious cases.
+
+- **Whether the record itself calls the evidence decisive.** When the court record's own words single out a flagged piece of evidence as the only, principal, or case-deciding proof, the tool quotes that passage verbatim alongside the flag. It never characterizes the evidence as decisive on its own — it only shows the record saying so, and leaves the weight to the reviewer.
+
+Each of these is a label a reviewer reads next to a single flag. None is combined with any other, and none produces a case-level number or rank.
+
+### 5.4 Validation Approach for Innocence Project Case Data
 
 Using the Innocence Project's own published exoneration cases (innocenceproject.org/all-cases) for this POC is appropriate for exactly one purpose: confirming that the schema (5.1) and extraction pipeline (5.2) correctly populate from real intake-style material and real court records. The site already publishes structured per-case metadata — contributing cause of conviction, type of forensic science at issue, race of exoneree/victim, plea status, type of crime — which is useful as a **schema validation check** (does our extraction agree with IP's own published categorization of the same case?), not as outcome-prediction training data.
 
@@ -246,7 +245,7 @@ Before any processed intake data leaves the validation environment in attorney-f
 
 The POC is successful if it demonstrates **all** of the following:
 
-1. **Schema fidelity:** the structuring pipeline correctly converts a representative sample of intake-style material (including IP's own published case narratives, per Section 5.3) into the common schema without losing or distorting case-relevant content.
+1. **Schema fidelity:** the structuring pipeline correctly converts a representative sample of intake-style material (including IP's own published case narratives, per Section 5.4) into the common schema without losing or distorting case-relevant content.
 2. **Flag precision on verifiable sources:** forensic-method and named-official flags (Section 5.2) are checked against their cited independent source and confirmed accurate on a manually audited sample — not validated by similarity to past exonerations.
 3. **Manageable flag volume:** average flags-per-intake is reported and assessed against actual chapter review capacity, not assumed.
 4. **No case-level score leakage:** output review confirms no part of the packet collapses into anything a reviewer would read as a composite judgment.
@@ -265,87 +264,4 @@ Consistent with the broader reframe of this project, **the POC's success is not 
 
 ---
 
-## 11. Reproducing the POC
-
-The repository ships the two inputs the pipeline needs: the code, and a snapshot
-of the National Registry of Exonerations at
-`data/raw/exonerations/fullcsv.csv`. It also ships the artifact those inputs
-produce — the browse/analytics **case store** at
-`data/processed/case_store.jsonl` (4,311 confirmed exonerations; 4,278 linked to
-a public court record, 33 gaps per Section 6.6). The store is a *derived cache*,
-not an input: you can use the shipped copy, or regenerate it yourself. The
-learned per-element **confidence table** derived from that store
-(`data/processed/calibration.json`) ships alongside it and is applied to every
-intake automatically.
-
-### 11.1 Install
-
-```bash
-python -m venv .venv && . .venv/bin/activate
-pip install -e '.[acquisition]'   # 'acquisition' pulls in requests + pandas
-```
-
-### 11.2 Use the shipped case store (fastest)
-
-Nothing to do — `data/processed/case_store.jsonl` is already in the clone. Launch
-the browse UI or run flagging directly against it.
-
-### 11.3 Regenerate the case store
-
-There are two backfill paths; both read the shipped NRE snapshot and write the
-same `data/processed/case_store.jsonl`.
-
-**API path** — links each exoneration to a court record via the CourtListener
-REST API. No large download, but it is network-bound and rate-limited. Set a free
-token first:
-
-```bash
-export COURTLISTENER_API_TOKEN=...   # from courtlistener.com
-risk-engine backfill                 # add --state / --county to scope
-```
-
-**Bulk path** — links records from offline CourtListener quarterly snapshots
-(no API, no rate limit). This is how the shipped store was built. It needs the
-snapshot download (~54 GB compressed for opinions), ~200 GB of scratch space to
-stream through, and several hours of compute:
-
-```bash
-risk-engine bulk-download            # → data/raw/courtlistener_bulk/
-risk-engine backfill --bulk          # streams the snapshots, writes the store
-```
-
-Both paths resume by default (already-stored cases are skipped); pass
-`--no-resume` to rebuild from scratch. Rows that find no matching court record
-are written as **gaps** (Section 6.6), never as clean/negative results.
-
-### 11.4 Refresh the confidence table
-
-The per-element confidence table is derived from the store, offline and in
-seconds. Re-run it whenever the store is regenerated:
-
-```bash
-risk-engine calibrate --from-store   # writes data/processed/calibration.json
-```
-
-Each value is that element's precision against NRE ground truth over the matched
-cases (never a combined case score, per Section 3.1). Categories that fire below
-the confidence floor are still surfaced at their honest low confidence, not
-suppressed.
-
-### 11.5 Innocence Project overlay
-
-The store is sourced from the **National Registry of Exonerations**, which tracks
-*every* US exoneration regardless of who secured it. To distinguish the subset the
-**Innocence Project** won, the browse UI joins each stored case against the IP's
-public case list (`data/raw/innocence_project/all_cases.json`, scraped from
-<https://innocenceproject.org/all-cases/>) by applicant name **and** conviction
-state. Matches carry an `IP` badge and an "Innocence Project" filter in `/cases`.
-
-The join is applied on load, so it survives store regeneration and needs no build
-step. It is deliberately conservative: name and state must agree, and roster
-entries with no store match (recent or name-changed exonerees the NRE snapshot
-predates) are simply left untagged — an honest gap, never a fabricated match.
-
----
-
-*This brief treats Section 3 (rejected approaches) as a permanent record, not a historical footnote — any future proposal resembling either rejected approach should be checked against the reasoning here before being reconsidered. Sections 5.2 and 6 are treated as binding constraints on every other section.*
+*This brief treats Section 3 (rejected approaches) as a permanent record, not a historical footnote — any future proposal resembling either rejected approach should be checked against the reasoning here before being reconsidered. Sections 5.2 and 6 are treated as binding constraints on every other section. Technical implementation, setup instructions, the system architecture diagram, and reproduction steps live in the companion specification, `docs/spec-v3-triage-assistant.md`.*
