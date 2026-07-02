@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ..models import Case
 from .base import ProcessingStep
+from .determinative import DeterminativeStep
 from .forensic import ForensicMethodStep
 from .ocr import OCRStep
 from .officials import NamedOfficialStep
@@ -34,6 +35,7 @@ def default_pipeline(
     text: bool = True,
     tabular: bool = True,
     forensic: bool = True,
+    determinative: bool = True,
     officials: bool = True,
 ) -> Pipeline:
     steps: list[ProcessingStep] = []
@@ -45,6 +47,10 @@ def default_pipeline(
         steps.append(TabularStep())
     if forensic:
         steps.append(ForensicMethodStep())
+    if determinative:
+        # Runs after the flag-producing steps so it can attach a record-language
+        # signal to the element flags they emitted.
+        steps.append(DeterminativeStep())
     if officials:
         steps.append(NamedOfficialStep())
     return Pipeline(steps)

@@ -1,12 +1,13 @@
 """Processing layer: optional, composable steps.
 
 Order: OCR → text normalization → tabular circumstance extraction → forensic
-method flags → named-official flags. Every step is optional so already-digitized
-cases can skip OCR (and even later steps) — the pipeline only runs steps that are
-enabled and applicable.
+method flags → outcome-determinative record signal → named-official flags. Every
+step is optional so already-digitized cases can skip OCR (and even later steps) —
+the pipeline only runs steps that are enabled and applicable.
 """
 
 from .base import ProcessingStep
+from .determinative import DeterminativeStep
 from .forensic import ForensicMethodStep
 from .ocr import OCRStep
 from .officials import NamedOfficialStep
@@ -20,6 +21,7 @@ __all__ = [
     "TextNormalizationStep",
     "TabularStep",
     "ForensicMethodStep",
+    "DeterminativeStep",
     "NamedOfficialStep",
     "Pipeline",
     "default_pipeline",

@@ -322,6 +322,8 @@ _DESCRIPTOR_LABELS: dict[str, str] = {
     "type_gravity": "type gravity",
     "repeat_findings": "formal findings on record",
     "frequency_note": "frequency",
+    "record_signal": "outcome-determinative record signal",
+    "signal_basis": "signal basis",
     "case_seriousness": "case seriousness",
     "seriousness_basis": "seriousness basis",
 }
