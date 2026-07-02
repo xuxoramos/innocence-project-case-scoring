@@ -34,6 +34,7 @@ from .forms import (
     case_detail_view,
     case_file_view,
     form_field_groups,
+    intake_datalists,
     packet_view,
     parse_intake_form,
 )
@@ -68,6 +69,7 @@ def index(request: Request) -> HTMLResponse:
         {
             "scope_statement": SCOPE_STATEMENT,
             "field_groups": form_field_groups(),
+            "datalists": intake_datalists(CaseStore.load()),
             "sources": sources,
             "default_source": default,
         },

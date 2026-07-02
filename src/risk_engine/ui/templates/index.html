@@ -66,6 +66,11 @@
         <label for="{{ f.key }}">{{ f.label }}</label>
         {% if f.multiline %}
         <textarea id="{{ f.key }}" name="{{ f.key }}"></textarea>
+        {% elif f.key in datalists %}
+        <input id="{{ f.key }}" name="{{ f.key }}" list="dl-{{ f.key }}" autocomplete="off" />
+        <datalist id="dl-{{ f.key }}">
+          {% for opt in datalists[f.key] %}<option value="{{ opt }}"></option>{% endfor %}
+        </datalist>
         {% else %}
         <input id="{{ f.key }}" name="{{ f.key }}" />
         {% endif %}

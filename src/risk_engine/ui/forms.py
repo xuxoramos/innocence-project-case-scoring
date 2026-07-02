@@ -221,6 +221,32 @@ def form_field_groups() -> list[dict]:
     return groups
 
 
+#: Intake schema key -> the :class:`~risk_engine.store.StoredCase` attribute whose
+#: distinct registry values seed that field's autocomplete. Additive only: these
+#: are HTML ``<datalist>`` suggestions, so the fields stay free text and the intake
+#: schema is unchanged (spec v3, point 1). Consistent, canonical spellings here
+#: improve the downstream name/jurisdiction record matching.
+DATALIST_FIELDS: dict[str, str] = {
+    "offense_convicted_of": "crime",
+    "conviction_jurisdiction": "jurisdiction",
+}
+
+
+def intake_datalists(store) -> dict[str, list[str]]:
+    """Distinct exoneration-registry values per autocomplete-eligible field.
+
+    Returns ``{schema_key: sorted distinct values}`` for the fields in
+    :data:`DATALIST_FIELDS`, drawn from the confirmed-exoneration store. Empty
+    values are dropped. Suggestions only — never a constraint on what a reviewer
+    may type.
+    """
+    out: dict[str, list[str]] = {}
+    for key, attr in DATALIST_FIELDS.items():
+        values = {getattr(case, attr, "") for case in store.cases}
+        out[key] = sorted(v for v in values if v)
+    return out
+
+
 def parse_intake_form(form: Mapping[str, str]) -> tuple[dict[str, str], dict[str, str]]:
     """Split a submitted form into (schema raw_fields, meta).
 

@@ -531,3 +531,46 @@ def test_case_detail_route_gap_and_missing(monkeypatch):
     assert missing.status_code == 404
     assert "not found" in missing.text.lower()
 
+
+def test_intake_datalists_distinct_registry_values():
+    from risk_engine.ui.forms import intake_datalists
+
+    store = CaseStore(
+        [
+            _stored(nre_id="1", crime="Robbery", state="Pennsylvania", county="Allegheny"),
+            _stored(nre_id="2", crime="Murder", state="Texas", county="Harris"),
+            _stored(nre_id="3", crime="Robbery", state="Texas", county="Harris"),
+        ]
+    )
+    lists = intake_datalists(store)
+    # distinct offenses, sorted, deduped
+    assert lists["offense_convicted_of"] == ["Murder", "Robbery"]
+    # distinct jurisdictions ("County County, State"), sorted, deduped
+    assert lists["conviction_jurisdiction"] == [
+        "Allegheny County, Pennsylvania",
+        "Harris County, Texas",
+    ]
+
+
+def test_index_route_renders_autocomplete_datalists(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.ui import app as app_module
+
+    store = CaseStore([_stored(nre_id="1", crime="Arson", state="Ohio", county="Cuyahoga")])
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda cls: store))
+    client = TestClient(app_module.app)
+
+    resp = client.get("/")
+    assert resp.status_code == 200
+    # the offense field is wired to a datalist seeded from the registry
+    assert 'list="dl-offense_convicted_of"' in resp.text
+    assert '<datalist id="dl-offense_convicted_of">' in resp.text
+    assert '<option value="Arson">' in resp.text
+    # the jurisdiction field too
+    assert 'list="dl-conviction_jurisdiction"' in resp.text
+    assert '<option value="Cuyahoga County, Ohio">' in resp.text
+
+
