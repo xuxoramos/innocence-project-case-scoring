@@ -7,23 +7,7 @@
 
 ---
 
-## 0. Rationale on pivoting from original version
-
-**Original concept:** Scan historical court archives, score each case on its similarity to past exonerations, and rank cases by likelihood of being a wrongful conviction.
-
-**Why we're moving away from it — three reasons:**
-
-**1. It would have systematically deprioritized the hardest, most neglected cases.**
-A score built on similarity to past exonerations rewards cases that look like past *wins* — overwhelmingly, cases with surviving DNA evidence. Categories of wrongful conviction that are common but slow and difficult to overturn, like false confessions with no physical evidence, would have been quietly ranked lower by design, not by oversight. We'd be optimizing the tool to find the easy cases and bury the hard ones — the opposite of where the organization's effort is most needed.
-
-**2. A single score throws away the information attorneys actually need.**
-Collapsing a case down to "HIGH risk" or a percentage hides exactly the details that matter for a resourcing decision: which specific piece of evidence is questionable, how confident the system is, and why. We're replacing this with individual, standalone flags — a specific forensic method, a specific witness-identification issue, a specific official's documented history — each shown with its own source and context, never combined into one judgment.
-
-**3. We considered a fix for the bias problem that created a worse problem, and rejected it.**
-One option on the table was: find still-incarcerated people whose cases *resemble* past exonerations, and label those cases "likely wrongful" to balance out the training data. We rejected this. It doesn't create independent evidence of anything — it just produces more examples of the same pattern the system already over-weights, with no way to tell a wrongful conviction apart from a correctly decided case that happens to share surface features. Worse, it would mean asserting — with no actual basis — that a specific, real, named person was probably wrongfully convicted. That's not a modeling shortcut; it's a claim about a real person's case that nobody has the standing to make. We're not building anything that does this, in this project or any future version of it.
-
-**What we're building instead:**
-A tool focused on the actual bottleneck — processing the intake questionnaire and pulling matching court records — that flags individual, independently verifiable facts (a discredited forensic method, a documented disciplinary history, a specific evidentiary gap) rather than scoring or ranking the case as a whole. Success is measured by whether the tool helps attorneys see relevant facts faster and more clearly, not by whether any specific case is later overturned — since outcomes like that take years to decades, and since policy change or legal precedent can be a meaningful win even without a reversed conviction.
+*This brief describes the system as it currently stands. The rationale for pivoting away from the original case-scoring concept, and the alternative approaches considered and firmly rejected during scoping, are preserved in [METHODOLOGY_DISCUSSION.md](METHODOLOGY_DISCUSSION.md).*
 
 ## 1. Problem Statement
 
@@ -34,7 +18,7 @@ This POC proposes a tool to help at the point where the bottleneck actually live
 1. Converts handwritten/inconsistent intake questionnaires into a structured, readable format, and pulls in matching public court records automatically where available.
 2. Flags individual, specific elements of the case — a forensic method, a witness identification circumstance, a named prosecutor or judge with a documented history — **each on its own**, rather than producing any single judgment about the case as a whole.
 
-This system does not estimate the probability that a given prisoner is innocent, and it does not rank cases by how easy they would be to win. Both of those framings were considered for earlier versions of this concept and rejected — see Section 3 for why.
+This system does not estimate the probability that a given prisoner is innocent, and it does not rank cases by how easy they would be to win. Both of those framings were considered for earlier versions of this concept and rejected — see [METHODOLOGY_DISCUSSION.md](METHODOLOGY_DISCUSSION.md) for why.
 
 ---
 
@@ -51,29 +35,9 @@ Every design decision downstream should be traceable to this table. A flag answe
 
 ---
 
-## 3. Rejected Approaches (Read Before Designing Anything Else)
+## 3. Rejected Approaches
 
-Two earlier approaches to this system were proposed and discarded during scoping. Both are documented here so the reasoning isn't lost if either is revisited later.
-
-### 3.1 Rejected: Case-Level "Risk Score"
-
-An earlier version of this concept proposed scanning a broad historical case archive and assigning each case a composite "Systemic Risk Profile Score," ranking cases by similarity to known exonerations.
-
-**Why this was rejected:**
-- A single composite score collapses exactly the information an attorney needs (which specific facts are at issue, how confidently, from what source) into an opaque number that functions like a probability statement regardless of intended framing.
-- More importantly: ranking by similarity to *successful* exonerations creates a built-in bias toward cases that are easiest to win — typically those with surviving biological evidence for DNA testing. Categories of wrongful conviction that are common but structurally hard to overturn (false confessions without physical evidence, for example) would be systematically deprioritized by design, not by oversight. A scoring system optimized for "looks like a past win" will quietly bury exactly the cases that don't look like past wins, which are disproportionately the hardest and most neglected cases already.
-- Every case has its own evidentiary context; reducing that context to a rank number actively destroys the information needed to make a resourcing decision well.
-
-### 3.2 Rejected: Synthetic Negative Labels via Similarity Matching
-
-A second approach proposed addressing the training-data bias above (Section 3.1) by finding still-incarcerated people whose cases resemble known exonerations on observable features, and labeling those cases as "presumed wrongful conviction" — effectively manufacturing a second class of training examples without requiring an actual exoneration.
-
-**Why this was rejected, and rejected firmly:**
-- This does not produce an independent negative class. It produces *more examples of the same pattern the model already over-weights*, because the matching procedure selects on the same surface features the bias already concentrates on. A case matched this way could be wrongful, or could be a correctly decided case where the matching features happen to coincide with an unrelated, confirmed-guilty outcome — there is no way to tell these apart from feature similarity alone, which is precisely why post-conviction investigation exists and takes years.
-- This is not a data augmentation technique. It is the manufacture of an unverified, externally consequential claim — "this real, named, still-incarcerated person was likely wrongfully convicted" — based on nothing but pattern resemblance, applied to actual people who have not had that determination made by anyone with the standing to make it. Even held entirely internally for model development, this is a labeling practice the project should not adopt: it creates a paper trail asserting something about real cases that the system has no basis to assert, and that kind of trail does not stay contained to a sandbox by design — model artifacts, intermediate datasets, and validation reports get shared, audited, and reused beyond their original intent.
-- It would also produce a validation metric that looks strong but is circular: a test set built from the same similarity logic as the training set will confirm the model finds what it was built to find, telling you nothing about real-world recall.
-
-**What replaced it:** the element-level approach in Section 5, where the unit of analysis is a specific, externally verifiable fact (a forensic method's documented unreliability, a named official's documented disciplinary history) rather than a label asserted about a person's guilt or innocence. See Section 5.2 for how this resolves the same underlying bias problem without the labeling risk.
+Two framings were considered during scoping and firmly rejected: a case-level **risk score** that ranks cases by similarity to past exonerations (referenced elsewhere in this brief and the specification as **§3.1**), and **synthetic "presumed wrongful" labels** applied to real, still-incarcerated people by feature similarity (**§3.2**). Both remain permanently out of scope and binding on every downstream design decision. The full reasoning — together with the rationale for pivoting away from the original scoring concept — lives in [METHODOLOGY_DISCUSSION.md](METHODOLOGY_DISCUSSION.md).
 
 ---
 
@@ -264,4 +228,4 @@ Consistent with the broader reframe of this project, **the POC's success is not 
 
 ---
 
-*This brief treats Section 3 (rejected approaches) as a permanent record, not a historical footnote — any future proposal resembling either rejected approach should be checked against the reasoning here before being reconsidered. Sections 5.2 and 6 are treated as binding constraints on every other section. Technical implementation, setup instructions, the system architecture diagram, and reproduction steps live in the companion specification, `docs/spec-v3-triage-assistant.md`.*
+*This brief treats the rejected approaches (§3.1 and §3.2) as a permanent record, not a historical footnote — any future proposal resembling either rejected approach should be checked against the reasoning in [METHODOLOGY_DISCUSSION.md](METHODOLOGY_DISCUSSION.md) before being reconsidered. Sections 5.2 and 6 are treated as binding constraints on every other section. Technical implementation, setup instructions, the system architecture diagram, and reproduction steps live in the companion specification, `docs/spec-v3-triage-assistant.md`.*
