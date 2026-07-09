@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Data sources &mdash; Intake Flagging POC</title>
+  <style>
+    :root { --line: #d0d0d0; }
+    body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1a1a1a; }
+    header { padding: 1rem 1.5rem; background: #102a43; color: #fff; }
+    header h1 { margin: 0 0 .25rem; font-size: 1.2rem; }
+    header p { margin: 0; font-size: .85rem; opacity: .85; }
+    nav.tabs { display: flex; gap: .25rem; padding: 0 1.5rem; background: #0b2235; }
+    nav.tabs a { color: #cbd6e2; text-decoration: none; font-size: .85rem; font-weight: 600;
+      padding: .55rem .9rem; border-bottom: 3px solid transparent; }
+    nav.tabs a:hover { color: #fff; }
+    nav.tabs a.active { color: #fff; border-bottom-color: #4a90d9; }
+    main { padding: 1.5rem; max-width: 70rem; }
+    .provenance { font-size: .82rem; color: #555; background: #f4f7fb; border-left: 3px solid #102a43;
+      padding: .6rem .9rem; border-radius: 0 6px 6px 0; margin: 0 0 1.2rem; }
+    h2 { font-size: .95rem; text-transform: uppercase; letter-spacing: .03em; color: #444;
+      margin: 1.6rem 0 .5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: 0 0 1rem; }
+    th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #eee; vertical-align: top; }
+    th { font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; color: #555; }
+    .tag { display: inline-block; font-size: .7rem; font-weight: 700; padding: .1rem .45rem;
+      border-radius: 10px; white-space: nowrap; }
+    .tag.offline { background: #e6f0e6; color: #2f6f2f; }
+    .tag.live { background: #e6eef7; color: #2a5a8f; }
+    .tag.tierA { background: #f6e0e0; color: #9a2b2b; }
+    .tag.tierB { background: #f6efd8; color: #8a6d1a; }
+    .tag.tierC { background: #e9e9ef; color: #55556a; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cards { display: flex; gap: 1rem; flex-wrap: wrap; margin: .3rem 0 1rem; }
+    .card { border: 1px solid var(--line); border-radius: 8px; padding: .8rem 1.1rem; min-width: 11rem; }
+    .card .n { font-size: 1.5rem; font-weight: 700; }
+    .card .l { font-size: .78rem; color: #555; text-transform: uppercase; letter-spacing: .03em; }
+    p.body { font-size: .88rem; color: #333; max-width: 60rem; }
+    code { background: #f2f2f2; padding: .05rem .3rem; border-radius: 3px; }
+    .note { font-size: .8rem; color: #666; margin: .4rem 0 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Data sources</h1>
+    <p>{{ scope_statement }}</p>
+  </header>
+  <nav class="tabs">
+    <a href="/">Intake</a>
+    <a href="/cases">Exoneration cases</a>
+    <a href="/analytics">Analytics</a>
+    <a href="/data-sources" class="active">Data sources</a>
+  </nav>
+  <main>
+    <p class="provenance">
+      This page describes <strong>where the tool looks for records and what backs each flag</strong>.
+      It is purely descriptive. Nothing here scores or ranks a case.
+    </p>
+
+    <h2>Record sources (the court-record universe)</h2>
+    <p class="body">
+      When you flag an intake, the engine matches the applicant to public court records by
+      <strong>name and conviction year</strong> from the source you pick on the intake form.
+      Today the records are <strong>appellate opinions</strong>; trial dockets and transcripts are
+      not wired up yet, so they show as honest gaps rather than "clean".
+    </p>
+    <table>
+      <thead>
+        <tr><th>Source</th><th>Kind</th><th>Records</th><th>Scope</th></tr>
+      </thead>
+      <tbody>
+        {% for s in sources %}
+        <tr>
+          <td><strong>{{ s.label }}</strong><br><code>{{ s.key }}</code></td>
+          <td>
+            {% if s.kind.startswith("Offline") %}<span class="tag offline">{{ s.kind }}</span>
+            {% else %}<span class="tag live">{{ s.kind }}</span>{% endif %}
+          </td>
+          <td class="num">{{ s.records }}</td>
+          <td>{{ s.scope }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="note">
+      "On demand" sources fetch opinion text live from the CourtListener REST API when you flag a
+      case (network + API token required). Offline fixtures are bundled with the app and need no
+      network.
+    </p>
+
+    <h2>Bulk offline snapshot (for mass matching)</h2>
+    <p class="body">
+      For large-scale linking without hitting the API, a quarterly <strong>CourtListener bulk
+      snapshot</strong> is staged on the server (~53&nbsp;GB): the full opinions corpus plus the
+      opinion-cluster metadata (captions, courts, dates). The offline matcher streams it once and
+      keeps text only for records that actually match &mdash; a bulk match means exactly the same
+      thing as an API match (same name + year scoring).
+    </p>
+
+    <h2>Reference corpora (what backs the flags)</h2>
+    <div class="cards">
+      <div class="card"><div class="n">{{ exoneration_count }}</div>
+        <div class="l">Exoneration cases</div></div>
+      <div class="card"><div class="n">{{ forensic_method_count }}</div>
+        <div class="l">Discredited-method references</div></div>
+    </div>
+    <p class="body">
+      The <strong>exoneration corpus</strong> is the National Registry of Exonerations set, used to
+      calibrate which element categories are worth flagging. It is a reference/label set, kept
+      strictly separate from live intakes and never commingled with them.
+      The <strong>discredited-method references</strong> are the case-independent scientific
+      citations (NAS&nbsp;2009, PCAST&nbsp;2016, FBI/DOJ reviews) that every
+      <em>discredited forensic method</em> flag is checked against &mdash; the reason a flag is
+      verifiable regardless of guilt or innocence.
+    </p>
+    <p class="note">
+      Demo records (source <code>demo_marvel</code>) are de-identified and demonstration-only; they
+      are excluded from the reference corpora and never used for training or calibration.
+    </p>
+
+    <h2>Debunked / discredited forensic science (the method reference)</h2>
+    <p class="body">
+      This is the data source behind every <em>discredited forensic method</em> flag. When a method
+      named here appears in a case record, the flag fires and carries the citation below so an
+      attorney can verify it. The <strong>tier</strong> is a per-method label grounded in a named
+      authority &mdash; never a score:
+      <span class="tag tierA">A</span> formally invalidated or abandoned,
+      <span class="tag tierB">B</span> unvalidated per NAS&nbsp;2009 / PCAST&nbsp;2016 but still in
+      use, <span class="tag tierC">C</span> contested or evolving.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Method</th><th>Tier</th><th>Status</th><th>Citing authority</th></tr>
+      </thead>
+      <tbody>
+        {% for m in forensic_methods %}
+        <tr>
+          <td><strong>{{ m.method }}</strong></td>
+          <td><span class="tag tier{{ m.tier }}" title="{{ m.tier_meaning }}">{{ m.tier }} &middot; {{ m.tier_meaning }}</span></td>
+          <td>{{ m.status }}</td>
+          <td>{{ m.authority }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p class="note">
+      Curated POC reference, not an exhaustive catalogue. Each entry's full citation travels with
+      the flag as its verification source. Primary bases: NAS&nbsp;2009
+      <em>Strengthening Forensic Science</em> and PCAST&nbsp;2016
+      <em>Forensic Science in Criminal Courts</em>, plus discipline-specific reviews.
+    </p>
+  </main>
+</body>
+</html>

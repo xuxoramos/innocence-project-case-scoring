@@ -29,6 +29,13 @@ Two buttons matter on the intake form:
 For every case below, set **Record source** to
 **"Demo — de-identified public cases (offline)"**.
 
+> **Note on the form fields.** *Offense(s) convicted of* and *Conviction county /
+> city / state* are free-text boxes with an autocomplete list. The suggestions
+> come from past cases, so the demo values won't appear in the drop-down — just
+> **type them in**. They're cosmetic anyway: the tool matches a record only on
+> the applicant **name (and conviction year)**, so the flag fires regardless of
+> what you type for offense or county (there is no geographic gate).
+
 ---
 
 ## 1. Case one — "Peter Parker" (the headline)

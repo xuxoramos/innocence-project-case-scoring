@@ -445,3 +445,96 @@ def analytics(request: Request) -> HTMLResponse:
             "thin_support": THIN_SUPPORT,
         },
     )
+
+
+#: Human descriptions for each registered record source, keyed by jurisdiction.
+#: Kept here (not in the source classes) so the class layer stays free of UI copy.
+_SOURCE_DESCRIPTIONS: dict[str, dict[str, str]] = {
+    "allegheny_pa": {
+        "kind": "Offline fixture",
+        "scope": "Placeholder Allegheny County (Pittsburgh) stubs — a pilot seam, not real "
+        "opinions yet.",
+    },
+    "demo_marvel": {
+        "kind": "Offline fixture",
+        "scope": "De-identified real public opinions used only for demos. Never training or "
+        "label data.",
+    },
+    "appellate_cl": {
+        "kind": "Live API (CourtListener)",
+        "scope": "U.S. appellate opinions, nationwide, fetched on demand from the CourtListener "
+        "REST API.",
+    },
+    "pa_appellate_cl": {
+        "kind": "Live API (CourtListener)",
+        "scope": "Pennsylvania appellate opinions (PA Supreme Court + Superior Court), fetched on "
+        "demand from CourtListener.",
+    },
+}
+
+
+@app.get("/data-sources", response_class=HTMLResponse)
+def data_sources(request: Request) -> HTMLResponse:
+    """Describe the universe of records the engine can draw on (record sources).
+
+    Enumerates the registered acquisition sources with their kind and scope, and
+    reports the size of the offline fixtures and the exoneration reference corpus.
+    Purely descriptive — no case is scored or ranked here (Section 3.1).
+    """
+    from ..forensic import FORENSIC_METHOD_REFERENCE, TIER_MEANING
+
+    rows = []
+    for key in list_sources():
+        try:
+            source = get_source(key)
+        except KeyError:  # pragma: no cover - registry is consistent
+            continue
+        meta = _SOURCE_DESCRIPTIONS.get(key, {"kind": "Record source", "scope": ""})
+        # Only count offline fixtures; live sources are on-demand and need network.
+        if meta["kind"].startswith("Offline"):
+            try:
+                count = str(len(list(source.discover())))
+            except Exception:  # pragma: no cover - offline fixtures don't raise
+                count = "—"
+        else:
+            count = "On demand"
+        rows.append(
+            {
+                "key": key,
+                "label": source.display_name or key,
+                "kind": meta["kind"],
+                "scope": meta["scope"],
+                "records": count,
+            }
+        )
+
+    # The debunked-science data source: the discredited/limited forensic-method
+    # reference each DISCREDITED_FORENSIC_METHOD flag is checked against. Sorted by
+    # tier (A formally invalidated, then B, then C) so the strongest sit on top.
+    forensic_methods = sorted(
+        (
+            {
+                "method": ref.method,
+                "status": ref.status,
+                "tier": ref.tier,
+                "tier_meaning": TIER_MEANING.get(ref.tier, ""),
+                "authority": ref.authority,
+                "source": ref.source,
+            }
+            for ref in FORENSIC_METHOD_REFERENCE
+        ),
+        key=lambda m: (m["tier"], m["method"]),
+    )
+
+    store = CaseStore.load()
+    return templates.TemplateResponse(
+        request,
+        "data_sources.html",
+        {
+            "scope_statement": SCOPE_STATEMENT,
+            "sources": rows,
+            "exoneration_count": len(store),
+            "forensic_method_count": len(FORENSIC_METHOD_REFERENCE),
+            "forensic_methods": forensic_methods,
+        },
+    )
