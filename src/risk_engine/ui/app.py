@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 import secrets
+from html import escape as html_escape
 from pathlib import Path
 from urllib.parse import urlencode
 from uuid import uuid4
@@ -473,6 +475,88 @@ _SOURCE_DESCRIPTIONS: dict[str, dict[str, str]] = {
 }
 
 
+#: The authoritative scientific sources behind the discredited-method flags, with
+#: acronyms expanded and a link where a stable public one exists. Ordered longest
+#: token first so the linkifier never matches a short token inside a longer one.
+#: ``token`` is the exact phrasing used in ``forensic.py`` authority strings.
+_AUTHORITY_LINKS: tuple[tuple[str, str, str], ...] = (
+    (
+        "Texas Forensic Science Commission moratorium recommendation (2016)",
+        "Texas Forensic Science Commission moratorium recommendation (2016)",
+        "https://www.txcourts.gov/fsc/",
+    ),
+    (
+        "FBI/DOJ microscopic-hair review (2015)",
+        "Federal Bureau of Investigation / Department of Justice (FBI/DOJ) "
+        "microscopic-hair review (2015)",
+        "https://www.fbi.gov/news/press-releases/fbi-testimony-on-microscopic-hair-analysis-"
+        "contained-errors-in-at-least-90-percent-of-cases-in-ongoing-review",
+    ),
+    (
+        "FBI abandonment of the technique (2005)",
+        "Federal Bureau of Investigation (FBI) abandonment of the technique (2005)",
+        "",
+    ),
+    (
+        "NFPA 921 fire-investigation standard",
+        "National Fire Protection Association (NFPA) 921 fire-investigation standard",
+        "https://www.nfpa.org/codes-and-standards/nfpa-921-standard-development/921",
+    ),
+    (
+        "PCAST 2016",
+        "President's Council of Advisors on Science and Technology (PCAST) 2016",
+        "https://obamawhitehouse.archives.gov/sites/default/files/microsites/ostp/PCAST/"
+        "pcast_forensic_science_report_final.pdf",
+    ),
+    (
+        "NAS 2009",
+        "National Academy of Sciences (NAS) 2009",
+        "https://www.nationalacademies.org/publications/12589",
+    ),
+    (
+        "NAS 2004",
+        "National Academy of Sciences (NAS) 2004",
+        "https://www.nationalacademies.org/publications/10924",
+    ),
+    (
+        "Innocence Project casework",
+        "Innocence Project casework",
+        "https://innocenceproject.org/misapplication-of-forensic-science/",
+    ),
+)
+
+#: Bibliography rows for the data-sources page (expanded names + links).
+_SCIENCE_SOURCES: tuple[dict[str, str], ...] = tuple(
+    {"label": label, "url": url} for _tok, label, url in _AUTHORITY_LINKS if url
+)
+
+_AUTHORITY_RE = re.compile(
+    "|".join(re.escape(tok) for tok, _label, _url in _AUTHORITY_LINKS)
+)
+_AUTHORITY_BY_TOKEN = {tok: (label, url) for tok, label, url in _AUTHORITY_LINKS}
+
+
+def _linkify_authority(text: str) -> str:
+    """Expand acronyms and hyperlink known citing authorities in ``text``.
+
+    Returns HTML with each recognized authority replaced by its expanded name,
+    linked when a stable public source exists. Input is our own curated data
+    (``forensic.py``), never user input, so the emitted anchors are safe.
+    """
+    escaped = html_escape(text)
+
+    def _replace(match: "re.Match[str]") -> str:
+        label, url = _AUTHORITY_BY_TOKEN[match.group(0)]
+        label = html_escape(label)
+        if url:
+            return f'<a href="{html_escape(url)}" target="_blank" rel="noopener">{label}</a>'
+        return label
+
+    # Match against the escaped text; the tokens contain no HTML-special chars,
+    # so escaping does not alter them.
+    return _AUTHORITY_RE.sub(_replace, escaped)
+
+
 @app.get("/data-sources", response_class=HTMLResponse)
 def data_sources(request: Request) -> HTMLResponse:
     """Describe the universe of records the engine can draw on (record sources).
@@ -519,6 +603,7 @@ def data_sources(request: Request) -> HTMLResponse:
                 "tier": ref.tier,
                 "tier_meaning": TIER_MEANING.get(ref.tier, ""),
                 "authority": ref.authority,
+                "authority_html": _linkify_authority(ref.authority),
                 "source": ref.source,
             }
             for ref in FORENSIC_METHOD_REFERENCE
@@ -536,5 +621,6 @@ def data_sources(request: Request) -> HTMLResponse:
             "exoneration_count": len(store),
             "forensic_method_count": len(FORENSIC_METHOD_REFERENCE),
             "forensic_methods": forensic_methods,
+            "science_sources": _SCIENCE_SOURCES,
         },
     )

@@ -125,8 +125,9 @@
       attorney can verify it. The <strong>tier</strong> is a per-method label grounded in a named
       authority &mdash; never a score:
       <span class="tag tierA">A</span> formally invalidated or abandoned,
-      <span class="tag tierB">B</span> unvalidated per NAS&nbsp;2009 / PCAST&nbsp;2016 but still in
-      use, <span class="tag tierC">C</span> contested or evolving.
+      <span class="tag tierB">B</span> unvalidated per the National Academy of Sciences (NAS)
+      2009 / President's Council of Advisors on Science and Technology (PCAST) 2016 reviews but
+      still in use, <span class="tag tierC">C</span> contested or evolving.
     </p>
     <table>
       <thead>
@@ -138,15 +139,29 @@
           <td><strong>{{ m.method }}</strong></td>
           <td><span class="tag tier{{ m.tier }}" title="{{ m.tier_meaning }}">{{ m.tier }} &middot; {{ m.tier_meaning }}</span></td>
           <td>{{ m.status }}</td>
-          <td>{{ m.authority }}</td>
+          <td>{{ m.authority_html | safe }}</td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
     <p class="note">
+      Acronyms: <strong>NAS</strong> = National Academy of Sciences; <strong>PCAST</strong> =
+      President's Council of Advisors on Science and Technology; <strong>FBI/DOJ</strong> = Federal
+      Bureau of Investigation / Department of Justice; <strong>NFPA</strong> = National Fire
+      Protection Association; <strong>DNA</strong> = deoxyribonucleic acid; <strong>CBLA</strong> =
+      comparative bullet-lead analysis.
+    </p>
+
+    <h2>Primary scientific sources</h2>
+    <ul class="body">
+      {% for s in science_sources %}
+      <li><a href="{{ s.url }}" target="_blank" rel="noopener">{{ s.label }}</a></li>
+      {% endfor %}
+    </ul>
+    <p class="note">
       Curated POC reference, not an exhaustive catalogue. Each entry's full citation travels with
       the flag as its verification source. Primary bases: NAS&nbsp;2009
-      <em>Strengthening Forensic Science</em> and PCAST&nbsp;2016
+      <em>Strengthening Forensic Science in the United States</em> and PCAST&nbsp;2016
       <em>Forensic Science in Criminal Courts</em>, plus discipline-specific reviews.
     </p>
   </main>
