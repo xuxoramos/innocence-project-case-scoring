@@ -143,35 +143,40 @@ persists nothing.
 
 If you (or the lawyer) clicked **Save** on any demo case, remove exactly those
 saved demo rows with the command below. It is targeted: it only drops case files
-whose `source_key` is `demo_marvel`, and it preserves file ownership so the app
-keeps working. It never touches real submitted intakes or the exoneration store.
+whose `source_key` is `demo_marvel` from the SQLite store (`app.db`) and refreshes
+the reviewable JSONL export. It never touches real submitted intakes or the
+exoneration store.
 
 ```bash
-for i in $(seq 1 8); do ssh -o ConnectTimeout=15 hetzner-web "runuser -u innocence -- python3 - <<'PY'
-import json, os
+for i in $(seq 1 8); do ssh -o ConnectTimeout=15 hetzner-web 'runuser -u innocence -- python3 - <<PY
+import json, os, sqlite3
 from pathlib import Path
-base = Path('/opt/innocence-project-case-scoring/data/processed')
-jsonl = base / 'case_files.jsonl'
-pdfs = base / 'case_pdfs'
-if not jsonl.exists():
-    print('no case_files.jsonl; nothing to clean'); raise SystemExit
-kept, removed = [], []
-for line in jsonl.read_text().splitlines():
-    line = line.strip()
-    if not line:
-        continue
-    row = json.loads(line)
-    (removed if row.get('source_key') == 'demo_marvel' else kept).append(row)
-tmp = jsonl.with_suffix('.jsonl.tmp')
-tmp.write_text(''.join(json.dumps(r) + os.linesep for r in kept))
-os.replace(tmp, jsonl)
-for r in removed:
-    p = pdfs / (str(r.get('case_id', '')) + '.pdf')
+base = Path("/opt/innocence-project-case-scoring/data/processed")
+dbf = base / "app.db"
+pdfs = base / "case_pdfs"
+if not dbf.exists():
+    print("no app.db; nothing to clean"); raise SystemExit
+conn = sqlite3.connect(str(dbf))
+conn.row_factory = sqlite3.Row
+ids = [r[0] for r in conn.execute("SELECT case_id FROM case_files WHERE source_key = ?", ("demo_marvel",))]
+conn.execute("DELETE FROM case_files WHERE source_key = ?", ("demo_marvel",))
+conn.commit()
+rows = conn.execute("SELECT * FROM case_files ORDER BY submitted_at").fetchall()
+def rec(r):
+    return {"case_id": r["case_id"], "provenance": r["provenance"], "submitted_at": r["submitted_at"], "chapter": r["chapter"], "applicant_ref": r["applicant_ref"], "fields": json.loads(r["fields"]), "unmapped": json.loads(r["unmapped"]), "record_status": r["record_status"], "source_key": r["source_key"], "record_searches": json.loads(r["record_searches"]), "retrieval_error": r["retrieval_error"], "retrieved_at": r["retrieved_at"], "pdf_stored": bool(r["pdf_stored"]), "pdf_original_name": r["pdf_original_name"]}
+export = base / "case_files.jsonl"
+tmp = export.with_suffix(".jsonl.tmp")
+tmp.write_text("".join(json.dumps(rec(r), sort_keys=True) + chr(10) for r in rows))
+os.replace(tmp, export)
+conn.close()
+removed = 0
+for cid in ids:
+    p = pdfs / (str(cid) + ".pdf")
     if p.exists():
-        p.unlink()
-print('removed', len(removed), 'demo case file(s); kept', len(kept), 'real one(s)')
+        p.unlink(); removed += 1
+print("removed", len(ids), "demo case file(s) from DB;", removed, "pdf(s); kept", len(rows))
 PY
-" 2>&1 && break; echo "clean-up retry $i"; sleep 3; done
+' 2>&1 && break; echo "clean-up retry $i"; sleep 3; done
 ```
 
 The case list refreshes on next load, so no restart is needed. To confirm it's
