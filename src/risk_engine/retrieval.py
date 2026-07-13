@@ -28,6 +28,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
 from .acquisition import get_source
+from .defense import defense_strategy_note
 from .intake.record import IntakeRecord
 from .models import Case, Document, Flag
 from .packet import CasePacket, RecordSearch, RecordSearchStatus, assemble_packet
@@ -106,6 +107,8 @@ class RetrievalResult:
     matches: list[CandidateMatch] = field(default_factory=list)
     cases: list[Case] = field(default_factory=list)  # matched + processed
     record_searches: list[RecordSearch] = field(default_factory=list)
+    #: Neutral descriptive record notes (e.g. trial-defense strategy, item 11).
+    notes: list[str] = field(default_factory=list)
 
     @property
     def flags(self) -> list[Flag]:
@@ -294,12 +297,17 @@ def retrieve_for_intake(
         for case in cases:
             for flag in case.flags:
                 flag.descriptors = {**flag.descriptors, **seriousness}
+    # Neutral descriptive note: the trial-defense strategy stated in the record
+    # (item 11). Not a flag, never scored.
+    combined = " ".join(d.normalized_text or "" for c in cases for d in c.documents)
+    note = defense_strategy_note(combined)
     return RetrievalResult(
         criteria=criteria,
         candidates_considered=considered,
         matches=matches,
         cases=cases,
         record_searches=_record_searches(cases, expected),
+        notes=[note] if note else [],
     )
 
 
@@ -327,6 +335,7 @@ def build_packet_for_intake(
         intake=intake,
         flags=result.flags,
         records=result.record_searches,
+        notes=result.notes,
     )
 
 
@@ -375,4 +384,11 @@ def packet_from_pasted_text(
             detail="manual paste by reviewer",
         )
     ]
-    return assemble_packet(case_id=case_id, intake=intake, flags=case.flags, records=records)
+    note = defense_strategy_note(text)
+    return assemble_packet(
+        case_id=case_id,
+        intake=intake,
+        flags=case.flags,
+        records=records,
+        notes=[note] if note else [],
+    )

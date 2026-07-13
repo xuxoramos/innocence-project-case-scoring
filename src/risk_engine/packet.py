@@ -58,6 +58,9 @@ class CasePacket:
     intake: IntakeRecord | None = None
     records: list[RecordSearch] = field(default_factory=list)
     flag_groups: list[FlagGroup] = field(default_factory=list)
+    #: Neutral, descriptive record notes (e.g. the trial-defense strategy, spec
+    #: v3 item 11). Purely informational — never a flag, score, or ranking (§3.1).
+    notes: list[str] = field(default_factory=list)
     scope_statement: str = SCOPE_STATEMENT
 
     @property
@@ -81,7 +84,16 @@ class CasePacket:
         lines += self._render_intake()
         lines += self._render_records()
         lines += self._render_flags()
+        lines += self._render_notes()
         return "\n".join(lines)
+
+    def _render_notes(self) -> list[str]:
+        if not self.notes:
+            return []
+        out = ["-- Notes (descriptive; not flags, not scored) --"]
+        out += [f"  - {note}" for note in self.notes]
+        out.append("")
+        return out
 
     def _render_intake(self) -> list[str]:
         out = ["-- Intake Summary --"]
@@ -169,6 +181,7 @@ def assemble_packet(
     intake: IntakeRecord | None = None,
     flags: Iterable[Flag] = (),
     records: Iterable[RecordSearch] = (),
+    notes: Iterable[str] = (),
 ) -> CasePacket:
     """Assemble a :class:`CasePacket` from its parts. Never ranks or scores."""
     return CasePacket(
@@ -176,6 +189,7 @@ def assemble_packet(
         intake=intake,
         records=list(records),
         flag_groups=_group_flags(flags),
+        notes=list(notes),
     )
 
 

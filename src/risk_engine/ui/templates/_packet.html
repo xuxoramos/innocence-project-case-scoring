@@ -84,4 +84,12 @@
   {% else %}
   <p class="noflags">No elements flagged. This is not an exoneration assessment &mdash; absence of flags only means none of the checked elements were present in the retrieved records.</p>
   {% endif %}
+
+  {% if packet.notes %}
+  <h3>Notes</h3>
+  <ul class="packet-notes" style="font-size:.86rem; color:#555;">
+    {% for note in packet.notes %}<li>{{ note }}</li>{% endfor %}
+  </ul>
+  <p class="noflags" style="font-size:.8rem;">Descriptive record facts only &mdash; not flags, not scored, and not a judgment of the case.</p>
+  {% endif %}
 </div>

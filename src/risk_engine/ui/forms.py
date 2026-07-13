@@ -411,6 +411,7 @@ def packet_view(packet: CasePacket) -> dict:
         "flag_groups": flag_groups,
         "total_flags": packet.total_flags,
         "has_flags": packet.has_flags,
+        "notes": list(packet.notes),
     }
 
 
