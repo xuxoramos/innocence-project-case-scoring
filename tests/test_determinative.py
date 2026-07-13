@@ -70,7 +70,6 @@ def test_determinative_language_never_fabricates_a_flag():
     # Frame + element noun are present, but no underlying lexeme flag exists, so
     # nothing is attached and no flag is invented (gated by an existing flag).
     case = _case_with(
-        "The only identification of the defendant came from a passing stranger "
-        "who never testified again."
+        "The case turned entirely on the eyewitness account, with little else in the record."
     )
     assert _flag(case, FlagCategory.WITNESS_ID_CIRCUMSTANCE) is None

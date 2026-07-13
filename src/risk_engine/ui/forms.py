@@ -93,6 +93,12 @@ FACTOR_DISPLAY: dict[str, tuple[str, str]] = {
         "DNA or physical-evidence issues bearing on preservation, testing, or "
         "later exoneration.",
     ),
+    FlagCategory.VULNERABLE_DEFENDANT_CIRCUMSTANCE.value: (
+        "Vulnerable-defendant circumstance",
+        "Record facts around the confession/interrogation (a minor or "
+        "intellectually-disabled defendant, or a prolonged interrogation). Flags "
+        "the circumstance only — never that a confession was false.",
+    ),
 }
 
 #: Descriptions for the NRE factors the engine has no schema check for — the

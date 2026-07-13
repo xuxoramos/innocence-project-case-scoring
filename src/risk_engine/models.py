@@ -44,6 +44,11 @@ class FlagCategory(str, enum.Enum):
     INFORMANT_CIRCUMSTANCE = "informant_circumstance"
     WITNESS_ID_CIRCUMSTANCE = "witness_id_circumstance"
     EVIDENCE_PRESERVATION = "evidence_preservation"
+    #: A vulnerability *circumstance* around a confession/interrogation (a minor
+    #: or intellectually-disabled defendant, or a prolonged interrogation). This
+    #: flags observable record facts only; it never asserts a confession was
+    #: false (False Confession stays a §6.5 blind spot, spec v3 §10 item 10).
+    VULNERABLE_DEFENDANT_CIRCUMSTANCE = "vulnerable_defendant_circumstance"
 
 
 class FlagBasis(str, enum.Enum):

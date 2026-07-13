@@ -49,6 +49,15 @@
         ["no corroborating", 0.7],
         ["show-up identification", 0.7],
         ["low light", 0.6]
+      ],
+      "windowed": [
+        {
+          "anchors": ["sole", "only", "lone", "single"],
+          "modifiers": ["witness", "eyewitness", "identification", "identified", "testimony"],
+          "window": 4,
+          "confidence": 0.72,
+          "term": null
+        }
       ]
     },
     {
@@ -80,6 +89,39 @@
       ]
     },
     {
+      "label": "vulnerable_defendant",
+      "category": "vulnerable_defendant_circumstance",
+      "basis": "directly_stated",
+      "inference_note": null,
+      "terms": [
+        ["juvenile was interrogated", 0.75],
+        ["minor was interrogated", 0.75],
+        ["intellectual disability", 0.7],
+        ["intellectually disabled", 0.7],
+        ["lengthy interrogation", 0.7],
+        ["prolonged interrogation", 0.7],
+        ["hours of interrogation", 0.7],
+        ["without a parent present", 0.65],
+        ["without an attorney present", 0.65]
+      ],
+      "windowed": [
+        {
+          "anchors": ["juvenile", "minor", "teenager", "teenage", "child"],
+          "modifiers": ["interrogated", "interrogation", "questioned", "confession", "confessed", "waived", "miranda"],
+          "window": 8,
+          "confidence": 0.72,
+          "term": null
+        },
+        {
+          "anchors": ["interrogation", "interrogated", "questioning", "questioned"],
+          "modifiers": ["hours", "prolonged", "lengthy", "overnight", "continuous", "sleep", "deprivation"],
+          "window": 6,
+          "confidence": 0.7,
+          "term": null
+        }
+      ]
+    },
+    {
       "label": "prosecutor_misconduct",
       "category": "prosecutor_misconduct",
       "basis": "directly_stated",
@@ -96,8 +138,20 @@
         ["knowingly elicited false", 0.8],
         ["failed to correct false testimony", 0.8],
         ["giglio", 0.75],
+        ["batson violation", 0.8],
+        ["racially discriminatory strike", 0.8],
+        ["excluded jurors based on race", 0.8],
         ["improper closing argument", 0.65],
         ["improper argument", 0.6]
+      ],
+      "windowed": [
+        {
+          "anchors": ["batson", "peremptory"],
+          "modifiers": ["race", "racial", "racially", "discriminatory", "excluded", "struck", "strike", "strikes", "jurors", "juror", "black"],
+          "window": 8,
+          "confidence": 0.75,
+          "term": "batson violation"
+        }
       ]
     },
     {
@@ -159,6 +213,9 @@
     "failed to correct false testimony": ["perjury / false accusation", "serious"],
     "improper closing argument": ["improper argument at trial", "lesser (not fabrication or Brady)"],
     "improper argument": ["improper argument at trial", "lesser (not fabrication or Brady)"],
+    "batson violation": ["racial jury exclusion (Batson)", "serious"],
+    "racially discriminatory strike": ["racial jury exclusion (Batson)", "serious"],
+    "excluded jurors based on race": ["racial jury exclusion (Batson)", "serious"],
     "fabricated evidence": ["fabricating evidence", "aggravating (fabrication)"],
     "planted evidence": ["fabricating evidence", "aggravating (fabrication)"],
     "falsified police report": ["fabricating evidence", "aggravating (fabrication)"],

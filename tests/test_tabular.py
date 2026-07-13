@@ -182,3 +182,42 @@ def test_windowed_rule_needs_anchor_and_modifier_together():
     assert case.features["informant"] == 0
 
 
+def test_batson_phrase_maps_to_batson_type():
+    case = _case_with("The appellate court found a Batson violation in jury selection.")
+    flag = _flag(case, FlagCategory.PROSECUTOR_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "racial jury exclusion (Batson)"
+
+
+def test_batson_windowed_peremptory_strikes_by_race():
+    case = _case_with(
+        "The prosecutor used peremptory strikes to remove Black jurors because of race."
+    )
+    flag = _flag(case, FlagCategory.PROSECUTOR_MISCONDUCT)
+    assert flag is not None
+    assert flag.descriptors["misconduct_type"] == "racial jury exclusion (Batson)"
+
+
+def test_single_witness_windowed_flags_witness_id():
+    case = _case_with("The verdict turned on a lone identification made months later.")
+    assert _flag(case, FlagCategory.WITNESS_ID_CIRCUMSTANCE) is not None
+
+
+def test_vulnerable_defendant_minor_interrogation_circumstance():
+    case = _case_with(
+        "A 16-year-old juvenile was interrogated for nine hours without a parent present."
+    )
+    flag = _flag(case, FlagCategory.VULNERABLE_DEFENDANT_CIRCUMSTANCE)
+    assert flag is not None
+    # Circumstance only: checkable record facts, no verification source, and it
+    # never asserts the confession was false.
+    assert flag.verification_source is None
+    assert "misconduct_type" not in flag.descriptors
+
+
+def test_vulnerable_defendant_prolonged_interrogation_windowed():
+    case = _case_with("The minor confessed after a prolonged interrogation overnight.")
+    assert _flag(case, FlagCategory.VULNERABLE_DEFENDANT_CIRCUMSTANCE) is not None
+
+
+
