@@ -1,0 +1,22 @@
+{
+  "_comment": "Curated recall fixture (spec v3 §10, items 16/17). Each case is a short, synthetic opinion snippet with its ground-truth expected flag categories. The recall gate (test_recall_fixture) enforces 100% recall for DISCREDITED_FORENSIC_METHOD across the known-forensic cases; other categories are reported (precision/recall printed) but not hard-gated, since real-world recall is a measured metric, not a merge blocker. Synthetic text only — never real defendants.",
+  "cases": [
+    {"id": "F-bitemark", "text": "A forensic odontologist offered bite-mark comparison testimony identifying the defendant as the source of the wound.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-hair", "text": "An analyst testified to a microscopic hair comparison matching hairs from the scene to the defendant.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-bulletlead", "text": "The State introduced comparative bullet-lead analysis to link the recovered rounds to the defendant's box of ammunition.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-arson", "text": "The fire investigator relied on a pour pattern and alligatoring to declare the blaze incendiary.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-shakenbaby", "text": "The prosecution's theory rested on the shaken baby syndrome triad as proof of abuse.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-toolmark", "text": "The examiner gave firearm identification testimony, calling it a toolmark identification to the exclusion of all other guns.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-footwear", "text": "A footwear impression from the scene was said to match the defendant's shoe to a certainty.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-dna", "text": "The lab reported a complex DNA mixture interpretation placing the defendant among several contributors.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-bloodstain", "text": "A detective offered bloodstain pattern analysis to reconstruct the position of the victim.", "expect": ["discredited_forensic_method"]},
+    {"id": "F-dogscent", "text": "The prosecution used a dog scent identification from a scent lineup to place the defendant at the scene.", "expect": ["discredited_forensic_method"]},
+    {"id": "N-informant", "text": "A jailhouse informant testified against the defendant in exchange for leniency on his own charges.", "expect": ["informant_circumstance"]},
+    {"id": "N-witnessid", "text": "The conviction turned on the sole eyewitness, who later recanted her identification.", "expect": ["witness_id_circumstance"]},
+    {"id": "N-brady", "text": "The court found the prosecutor withheld exculpatory evidence from the defense in violation of Brady.", "expect": ["prosecutor_misconduct"]},
+    {"id": "N-police", "text": "Officers planted evidence and falsified the police report to secure the arrest.", "expect": ["police_misconduct"]},
+    {"id": "N-vulnerable", "text": "A sixteen-year-old juvenile was interrogated for nine hours overnight without a parent present.", "expect": ["vulnerable_defendant_circumstance"]},
+    {"id": "N-batson", "text": "The prosecutor used peremptory strikes to remove Black jurors because of their race.", "expect": ["prosecutor_misconduct"]},
+    {"id": "C-clean", "text": "The appellate court reviewed the record and affirmed the judgment of sentence in all respects.", "expect": []}
+  ]
+}
