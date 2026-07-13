@@ -1,0 +1,169 @@
+{
+  "_comment": "Case-record circumstance & official-misconduct lexemes for the keyword-seeded TabularStep (README v2 Section 5.2). Externalized from tabular.py so terms/confidences are an editable, reviewable diff. Loaded by risk_engine.processing.tabular. Array order is preserved. Each term = [phrase, extraction_confidence]; terms below the confidence floor (0.6) are recorded as features but suppressed as flags. misconduct_types maps a term to [type_label, gravity] (NRE 'Government Misconduct' categories; spec v3 Appendix B).",
+  "lexemes": [
+    {
+      "label": "informant",
+      "category": "informant_circumstance",
+      "basis": "directly_stated",
+      "inference_note": null,
+      "terms": [
+        ["jailhouse informant", 0.85],
+        ["jail-house informant", 0.85],
+        ["cooperation agreement", 0.75],
+        ["cooperating witness", 0.7],
+        ["confidential informant", 0.7],
+        ["sentence reduction", 0.7],
+        ["accomplice testimony", 0.65],
+        ["suborned perjury", 0.8],
+        ["suborn perjury", 0.8],
+        ["perjured testimony", 0.75],
+        ["false testimony", 0.65],
+        ["in exchange for", 0.6],
+        ["plea deal", 0.5]
+      ]
+    },
+    {
+      "label": "witness_id",
+      "category": "witness_id_circumstance",
+      "basis": "directly_stated",
+      "inference_note": null,
+      "terms": [
+        ["recanted", 0.85],
+        ["recantation", 0.85],
+        ["sole eyewitness", 0.8],
+        ["lone eyewitness", 0.8],
+        ["suggestive lineup", 0.8],
+        ["suggestive identification", 0.8],
+        ["only eyewitness", 0.75],
+        ["single witness", 0.7],
+        ["uncorroborated", 0.7],
+        ["no corroborating", 0.7],
+        ["show-up identification", 0.7],
+        ["low light", 0.6]
+      ]
+    },
+    {
+      "label": "cross_racial",
+      "category": "witness_id_circumstance",
+      "basis": "inferred",
+      "inference_note": "cross-racial identification inferred from the record; verify against the stated races of witness and defendant (README v2 Section 6.4)",
+      "terms": [
+        ["cross-racial", 0.7],
+        ["cross racial", 0.7],
+        ["other-race", 0.65],
+        ["different race", 0.65]
+      ]
+    },
+    {
+      "label": "evidence_preservation",
+      "category": "evidence_preservation",
+      "basis": "directly_stated",
+      "inference_note": null,
+      "terms": [
+        ["destroyed evidence", 0.8],
+        ["lost evidence", 0.8],
+        ["untested rape kit", 0.85],
+        ["chain of custody", 0.7],
+        ["evidence locker", 0.7],
+        ["not tested", 0.7],
+        ["biological evidence", 0.65],
+        ["rape kit", 0.5]
+      ]
+    },
+    {
+      "label": "prosecutor_misconduct",
+      "category": "prosecutor_misconduct",
+      "basis": "directly_stated",
+      "inference_note": null,
+      "terms": [
+        ["brady violation", 0.85],
+        ["withheld exculpatory", 0.85],
+        ["suppressed exculpatory", 0.85],
+        ["brady material", 0.8],
+        ["failed to disclose exculpatory", 0.8],
+        ["prosecutorial misconduct", 0.8],
+        ["knowingly presented false", 0.8],
+        ["knowingly used false", 0.8],
+        ["knowingly elicited false", 0.8],
+        ["failed to correct false testimony", 0.8],
+        ["giglio", 0.75],
+        ["improper closing argument", 0.65],
+        ["improper argument", 0.6]
+      ]
+    },
+    {
+      "label": "judicial_misconduct",
+      "category": "judicial_misconduct",
+      "basis": "directly_stated",
+      "inference_note": null,
+      "terms": [
+        ["judicial misconduct", 0.85],
+        ["judge was removed", 0.8],
+        ["removed from the bench", 0.8],
+        ["recused for bias", 0.75],
+        ["ex parte communication", 0.65]
+      ]
+    },
+    {
+      "label": "police_misconduct",
+      "category": "police_misconduct",
+      "basis": "directly_stated",
+      "inference_note": null,
+      "terms": [
+        ["fabricated evidence", 0.85],
+        ["planted evidence", 0.85],
+        ["coerced confession", 0.85],
+        ["falsified police report", 0.8],
+        ["fabrication of evidence", 0.8],
+        ["manufactured evidence", 0.8],
+        ["falsifying evidence", 0.8],
+        ["police misconduct", 0.8],
+        ["coerced statement", 0.75],
+        ["coercive interrogation", 0.65]
+      ]
+    },
+    {
+      "label": "expert_witness_misconduct",
+      "category": "expert_witness_misconduct",
+      "basis": "directly_stated",
+      "inference_note": null,
+      "terms": [
+        ["fabricated test results", 0.85],
+        ["falsified the analysis", 0.85],
+        ["fraudulent analysis", 0.85],
+        ["overstated the certainty", 0.8],
+        ["exaggerated the certainty", 0.8],
+        ["misrepresented the results", 0.75]
+      ]
+    }
+  ],
+  "misconduct_types": {
+    "brady violation": ["concealing exculpatory evidence (Brady)", "aggravating (Brady concealment)"],
+    "withheld exculpatory": ["concealing exculpatory evidence (Brady)", "aggravating (Brady concealment)"],
+    "suppressed exculpatory": ["concealing exculpatory evidence (Brady)", "aggravating (Brady concealment)"],
+    "brady material": ["concealing exculpatory evidence (Brady)", "aggravating (Brady concealment)"],
+    "failed to disclose exculpatory": ["concealing exculpatory evidence (Brady)", "aggravating (Brady concealment)"],
+    "giglio": ["concealing exculpatory evidence (Brady)", "aggravating (Brady concealment)"],
+    "knowingly presented false": ["perjury / false accusation", "serious"],
+    "knowingly used false": ["perjury / false accusation", "serious"],
+    "knowingly elicited false": ["perjury / false accusation", "serious"],
+    "failed to correct false testimony": ["perjury / false accusation", "serious"],
+    "improper closing argument": ["improper argument at trial", "lesser (not fabrication or Brady)"],
+    "improper argument": ["improper argument at trial", "lesser (not fabrication or Brady)"],
+    "fabricated evidence": ["fabricating evidence", "aggravating (fabrication)"],
+    "planted evidence": ["fabricating evidence", "aggravating (fabrication)"],
+    "falsified police report": ["fabricating evidence", "aggravating (fabrication)"],
+    "fabrication of evidence": ["fabricating evidence", "aggravating (fabrication)"],
+    "manufactured evidence": ["fabricating evidence", "aggravating (fabrication)"],
+    "falsifying evidence": ["fabricating evidence", "aggravating (fabrication)"],
+    "coerced confession": ["misconduct in interrogations", "serious"],
+    "coerced statement": ["misconduct in interrogations", "serious"],
+    "coercive interrogation": ["misconduct in interrogations", "serious"],
+    "fabricated test results": ["fabricating evidence", "aggravating (fabrication)"],
+    "falsified the analysis": ["fabricating evidence", "aggravating (fabrication)"],
+    "fraudulent analysis": ["fabricating evidence", "aggravating (fabrication)"],
+    "overstated the certainty": ["false or misleading testimony", "serious"],
+    "exaggerated the certainty": ["false or misleading testimony", "serious"],
+    "misrepresented the results": ["false or misleading testimony", "serious"]
+  }
+}

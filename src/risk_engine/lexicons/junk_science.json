@@ -1,0 +1,100 @@
+{
+  "_comment": "Discredited / scientifically-limited forensic-method reference for the DISCREDITED_FORENSIC_METHOD flag (README v2 Section 5.2; spec v3 Appendix A). Externalized from forensic.py so terms/tiers/citations are an editable, reviewable diff. Loaded by risk_engine.forensic. Order is preserved. tier: A formally invalidated/abandoned, B unvalidated per NAS 2009/PCAST 2016 but still used, C contested/evolving.",
+  "tier_meaning": {
+    "A": "formally invalidated or abandoned",
+    "B": "unvalidated per NAS 2009 / PCAST 2016 but still in use",
+    "C": "contested or evolving in the literature"
+  },
+  "methods": [
+    {
+      "method": "bite-mark comparison",
+      "status": "discredited",
+      "source": "PCAST 2016 found bitemark analysis not scientifically valid and unlikely to be salvageable; NAS 2009 Ch. 5 found no scientific basis for identifying a source from bitemarks.",
+      "confidence": 0.9,
+      "tier": "A",
+      "authority": "Texas Forensic Science Commission moratorium recommendation (2016); NAS 2009",
+      "aliases": ["bite-mark", "bite mark", "bitemark", "odontology comparison"]
+    },
+    {
+      "method": "microscopic hair comparison",
+      "status": "discredited",
+      "source": "NAS 2009 Ch. 5: no scientific basis for individualization by hair microscopy; FBI/DOJ 2015 review acknowledged flawed microscopic-hair testimony in the overwhelming majority of audited trials.",
+      "confidence": 0.9,
+      "tier": "A",
+      "authority": "FBI/DOJ microscopic-hair review (2015); NAS 2009",
+      "aliases": ["hair microscopy", "microscopic hair", "hair comparison microscopy"]
+    },
+    {
+      "method": "comparative bullet-lead analysis",
+      "status": "discredited",
+      "source": "NAS 2004 'Forensic Analysis: Weighing Bullet Lead Evidence' rejected the supporting inferences; the FBI discontinued the technique in 2005.",
+      "confidence": 0.9,
+      "tier": "A",
+      "authority": "FBI abandonment of the technique (2005); NAS 2004",
+      "aliases": ["comparative bullet-lead", "bullet lead analysis", "CBLA"]
+    },
+    {
+      "method": "arson burn-indicator analysis",
+      "status": "discredited",
+      "source": "Pre-NFPA-921 fire 'pour pattern' / burn-indicator folklore (crazed glass, alligatoring, low burn) was invalidated as a basis for determining incendiary origin; NFPA 921 (1992 onward) is the accepted standard.",
+      "confidence": 0.85,
+      "tier": "C",
+      "authority": "NFPA 921 fire-investigation standard",
+      "aliases": ["pour pattern", "burn indicator", "alligatoring", "crazed glass"]
+    },
+    {
+      "method": "shaken baby syndrome triad",
+      "status": "scientifically contested",
+      "source": "The diagnostic 'triad' as sole proof of abusive head trauma is contested in the biomechanical and medical literature; courts and reviews have flagged it as not scientifically settled.",
+      "confidence": 0.8,
+      "tier": "C",
+      "authority": "Contested biomechanical and medical literature",
+      "aliases": ["shaken baby", "abusive head trauma triad"]
+    },
+    {
+      "method": "firearm/toolmark identification",
+      "status": "scientifically limited",
+      "source": "PCAST 2016 found firearms/toolmark identification had not been established as foundationally valid and rested on a single appropriately-designed study with a non-trivial error rate.",
+      "confidence": 0.7,
+      "tier": "B",
+      "authority": "PCAST 2016; NAS 2009",
+      "aliases": ["toolmark identification", "firearm identification", "ballistic match"]
+    },
+    {
+      "method": "footwear / tire impression comparison",
+      "status": "scientifically limited",
+      "source": "PCAST 2016 found footwear/impression source-identification claims lacked established foundational validity for individualization.",
+      "confidence": 0.7,
+      "tier": "B",
+      "authority": "PCAST 2016",
+      "aliases": ["footwear impression", "shoe print comparison", "tire impression"]
+    },
+    {
+      "method": "complex DNA mixture interpretation",
+      "status": "scientifically limited",
+      "source": "PCAST 2016 found interpretation of complex DNA mixtures (multiple contributors, low template) foundationally valid only within narrow, validated bounds, and unreliable outside them.",
+      "confidence": 0.65,
+      "tier": "B",
+      "authority": "PCAST 2016",
+      "aliases": ["complex dna mixture", "mixed dna interpretation", "low template dna"]
+    },
+    {
+      "method": "bloodstain pattern analysis",
+      "status": "scientifically contested",
+      "source": "NAS 2009 Ch. 5 found bloodstain-pattern analysis opinions more subjective than scientific and the uncertainties not well understood.",
+      "confidence": 0.7,
+      "tier": "C",
+      "authority": "NAS 2009",
+      "aliases": ["bloodstain pattern", "blood spatter analysis", "blood-spatter"]
+    },
+    {
+      "method": "dog-scent identification",
+      "status": "scientifically contested",
+      "source": "Scent-lineup / dog-scent identification has repeatedly figured in documented wrongful-conviction casework and lacks validated error rates (Innocence Project casework).",
+      "confidence": 0.7,
+      "tier": "C",
+      "authority": "Innocence Project casework",
+      "aliases": ["scent lineup", "dog scent", "scent identification"]
+    }
+  ]
+}

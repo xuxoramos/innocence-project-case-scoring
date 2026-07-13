@@ -25,6 +25,7 @@ import re
 from dataclasses import dataclass
 
 from ..config import settings
+from ..lexicons import load_rules
 from ..models import Case, Flag, FlagBasis, FlagCategory
 from .base import ProcessingStep, sentence_around
 
@@ -40,147 +41,26 @@ class _Lexeme:
     inference_note: str | None = None
 
 
+#: Parsed ``lexicons/rules.json`` — the editable source of the lexemes and the
+#: misconduct-type map below (spec v3 §10, item 2). Edit the JSON, not this module.
+_RULES = load_rules()
+
+
+def _lexeme_from_json(entry: dict) -> _Lexeme:
+    """Build a :class:`_Lexeme` from one ``rules.json`` lexeme entry."""
+    return _Lexeme(
+        label=entry["label"],
+        category=FlagCategory(entry["category"]),
+        basis=FlagBasis(entry["basis"]),
+        terms=tuple((term, conf) for term, conf in entry["terms"]),
+        inference_note=entry.get("inference_note"),
+    )
+
+
 # Phrasing covers the paraphrases appellate opinions actually use, not just lay
 # terms, to lift recall. Cross-racial ID is its own lexeme (inferred basis).
-_LEXICON: tuple[_Lexeme, ...] = (
-    _Lexeme(
-        "informant",
-        FlagCategory.INFORMANT_CIRCUMSTANCE,
-        FlagBasis.DIRECTLY_STATED,
-        (
-            ("jailhouse informant", 0.85),
-            ("jail-house informant", 0.85),
-            ("cooperation agreement", 0.75),
-            ("cooperating witness", 0.7),
-            ("confidential informant", 0.7),
-            ("sentence reduction", 0.7),
-            ("accomplice testimony", 0.65),
-            # Perjury / false-accusation phrasings (NRE maps these to the informant
-            # column). Corpus-grounded; the bare token "perjur" is boilerplate
-            # ("under penalty of perjury") so only these specific phrases fire.
-            ("suborned perjury", 0.8),
-            ("suborn perjury", 0.8),
-            ("perjured testimony", 0.75),
-            ("false testimony", 0.65),
-            ("in exchange for", 0.6),
-            ("plea deal", 0.5),  # ubiquitous, not per se informant risk -> suppressed
-        ),
-    ),
-    _Lexeme(
-        "witness_id",
-        FlagCategory.WITNESS_ID_CIRCUMSTANCE,
-        FlagBasis.DIRECTLY_STATED,
-        (
-            ("recanted", 0.85),
-            ("recantation", 0.85),
-            ("sole eyewitness", 0.8),
-            ("lone eyewitness", 0.8),
-            ("suggestive lineup", 0.8),
-            ("suggestive identification", 0.8),
-            ("only eyewitness", 0.75),
-            ("single witness", 0.7),
-            ("uncorroborated", 0.7),
-            ("no corroborating", 0.7),
-            ("show-up identification", 0.7),
-            ("low light", 0.6),
-        ),
-    ),
-    _Lexeme(
-        "cross_racial",
-        FlagCategory.WITNESS_ID_CIRCUMSTANCE,
-        FlagBasis.INFERRED,
-        (
-            ("cross-racial", 0.7),
-            ("cross racial", 0.7),
-            ("other-race", 0.65),
-            ("different race", 0.65),
-        ),
-        inference_note=(
-            "cross-racial identification inferred from the record; verify against "
-            "the stated races of witness and defendant (README v2 Section 6.4)"
-        ),
-    ),
-    _Lexeme(
-        "evidence_preservation",
-        FlagCategory.EVIDENCE_PRESERVATION,
-        FlagBasis.DIRECTLY_STATED,
-        (
-            ("destroyed evidence", 0.8),
-            ("lost evidence", 0.8),
-            ("untested rape kit", 0.85),
-            ("chain of custody", 0.7),
-            ("evidence locker", 0.7),
-            ("not tested", 0.7),
-            ("biological evidence", 0.65),
-            ("rape kit", 0.5),  # present in most sexual-assault cases -> suppressed
-        ),
-    ),
-    # Official-misconduct circumstances described *in the record*. Confidences are
-    # seeds; calibration against the NRE per-role columns adjusts them. No
-    # verification_source — corroborating the named actor is the registry's job.
-    _Lexeme(
-        "prosecutor_misconduct",
-        FlagCategory.PROSECUTOR_MISCONDUCT,
-        FlagBasis.DIRECTLY_STATED,
-        (
-            ("brady violation", 0.85),
-            ("withheld exculpatory", 0.85),
-            ("suppressed exculpatory", 0.85),
-            ("brady material", 0.8),
-            ("failed to disclose exculpatory", 0.8),
-            ("prosecutorial misconduct", 0.8),
-            ("knowingly presented false", 0.8),
-            ("knowingly used false", 0.8),
-            ("knowingly elicited false", 0.8),
-            ("failed to correct false testimony", 0.8),
-            ("giglio", 0.75),
-            ("improper closing argument", 0.65),
-            ("improper argument", 0.6),
-        ),
-    ),
-    _Lexeme(
-        "judicial_misconduct",
-        FlagCategory.JUDICIAL_MISCONDUCT,
-        FlagBasis.DIRECTLY_STATED,
-        (
-            ("judicial misconduct", 0.85),
-            ("judge was removed", 0.8),
-            ("removed from the bench", 0.8),
-            ("recused for bias", 0.75),
-            ("ex parte communication", 0.65),
-        ),
-    ),
-    _Lexeme(
-        "police_misconduct",
-        FlagCategory.POLICE_MISCONDUCT,
-        FlagBasis.DIRECTLY_STATED,
-        (
-            ("fabricated evidence", 0.85),
-            ("planted evidence", 0.85),
-            ("coerced confession", 0.85),
-            ("falsified police report", 0.8),
-            ("fabrication of evidence", 0.8),
-            ("manufactured evidence", 0.8),
-            ("falsifying evidence", 0.8),
-            ("police misconduct", 0.8),
-            ("coerced statement", 0.75),
-            ("coercive interrogation", 0.65),
-        ),
-    ),
-    _Lexeme(
-        "expert_witness_misconduct",
-        FlagCategory.EXPERT_WITNESS_MISCONDUCT,
-        FlagBasis.DIRECTLY_STATED,
-        (
-            ("fabricated test results", 0.85),
-            ("falsified the analysis", 0.85),
-            ("fraudulent analysis", 0.85),
-            ("overstated the certainty", 0.8),
-            ("exaggerated the certainty", 0.8),
-            ("misrepresented the results", 0.75),
-        ),
-    ),
-)
+_LEXICON: tuple[_Lexeme, ...] = tuple(_lexeme_from_json(e) for e in _RULES["lexemes"])
+
 
 # Pre-compile a word-boundary matcher per term so a term does not fire inside a
 # longer token (e.g. "single witness" must be a whole phrase).
@@ -197,48 +77,16 @@ _COMPILED: tuple[tuple[_Lexeme, tuple[tuple[re.Pattern[str], float, str], ...]],
 
 
 # Misconduct *type* + *gravity* descriptor per lexeme term (spec v3 §3.4, point 4
-# / Appendix B). Types are the NRE "Government Misconduct and Convicting the
-# Innocent" (2020) categories; gravity reflects that fabrication and Brady
-# concealment rank graver than improper argument (§5.2). Only terms that map to
-# a specific type carry a descriptor — generic terms ("prosecutorial
-# misconduct", "police misconduct") and judicial-conduct terms are left
-# undescribed rather than forced into a type. These stay attached to the one
-# element and are never summed into a case-level number (README v2 §3.1).
-_FABRICATION = ("fabricating evidence", "aggravating (fabrication)")
-_BRADY = ("concealing exculpatory evidence (Brady)", "aggravating (Brady concealment)")
-_INTERROGATION = ("misconduct in interrogations", "serious")
-_PERJURY = ("perjury / false accusation", "serious")
-_FALSE_TESTIMONY = ("false or misleading testimony", "serious")
-_IMPROPER_ARGUMENT = ("improper argument at trial", "lesser (not fabrication or Brady)")
-
+# / Appendix B), built from ``lexicons/rules.json`` ``misconduct_types``. Types
+# are the NRE "Government Misconduct and Convicting the Innocent" (2020)
+# categories; gravity reflects that fabrication and Brady concealment rank graver
+# than improper argument (§5.2). Only terms that map to a specific type carry a
+# descriptor — generic terms ("prosecutorial misconduct", "police misconduct")
+# and judicial-conduct terms are left undescribed rather than forced into a type.
+# These stay attached to the one element and are never summed (README v2 §3.1).
 _MISCONDUCT_TYPE: dict[str, tuple[str, str]] = {
-    "brady violation": _BRADY,
-    "withheld exculpatory": _BRADY,
-    "suppressed exculpatory": _BRADY,
-    "brady material": _BRADY,
-    "failed to disclose exculpatory": _BRADY,
-    "giglio": _BRADY,
-    "knowingly presented false": _PERJURY,
-    "knowingly used false": _PERJURY,
-    "knowingly elicited false": _PERJURY,
-    "failed to correct false testimony": _PERJURY,
-    "improper closing argument": _IMPROPER_ARGUMENT,
-    "improper argument": _IMPROPER_ARGUMENT,
-    "fabricated evidence": _FABRICATION,
-    "planted evidence": _FABRICATION,
-    "falsified police report": _FABRICATION,
-    "fabrication of evidence": _FABRICATION,
-    "manufactured evidence": _FABRICATION,
-    "falsifying evidence": _FABRICATION,
-    "coerced confession": _INTERROGATION,
-    "coerced statement": _INTERROGATION,
-    "coercive interrogation": _INTERROGATION,
-    "fabricated test results": _FABRICATION,
-    "falsified the analysis": _FABRICATION,
-    "fraudulent analysis": _FABRICATION,
-    "overstated the certainty": _FALSE_TESTIMONY,
-    "exaggerated the certainty": _FALSE_TESTIMONY,
-    "misrepresented the results": _FALSE_TESTIMONY,
+    term: (type_label, gravity)
+    for term, (type_label, gravity) in _RULES["misconduct_types"].items()
 }
 
 

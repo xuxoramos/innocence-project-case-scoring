@@ -458,6 +458,7 @@ this spec, README v2 and this spec win.
 | # | Item | Decision |
 |---|---|---|
 | 11 | `defense_strategy_incompatibility` (self-defense / consent) | Adopt **only** as a neutral, checkable descriptive note ("trial defense conceded the act"). It must never feed a viability score or a "less likely innocent" signal (README §3.1). If it cannot be phrased neutrally, drop it. |
+| 10 | Vulnerable-defendant confession (minors / long interrogation) | Adopt **only** as a checkable **circumstance** flag on the *record facts* ("defendant was a minor at interrogation", "interrogation exceeded N hours"). It must never assert the confession was false — False Confession itself stays a §6.5 blind spot. The flag surfaces the risk circumstance for a human, nothing more. |
 
 ### 10.3 Mapped (vocabulary / existing category, no new machinery)
 
@@ -478,6 +479,5 @@ this spec, README v2 and this spec win.
 
 ### 10.5 Open (decide before building)
 
-| # | Item | Status |
-|---|---|---|
-| 10 | Vulnerable-defendant confession (minors / long interrogation, review §5) | **Undecided.** False Confession is currently a deliberate blind spot (README §6.5). In-bounds only if reframed as a checkable *circumstance* ("defendant was a minor", "interrogation exceeded N hours"), never a "false confession detected" claim. Confirm reframe-or-keep-blind-spot before building. |
+*All review items are now resolved. Items 3, 14, 15 rejected (confirmed 2026-07-13);
+item 10 accepted as a reframed circumstance flag (see 10.2).*
