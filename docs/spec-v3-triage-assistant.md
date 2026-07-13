@@ -427,3 +427,57 @@ change is a reviewable diff.*
 
 *Source: National Registry of Exonerations, "Government Misconduct and Convicting the
 Innocent" (2020). Actors: police, prosecutors, forensic analysts, other officials.*
+
+---
+
+## 10. Consultant Review Reconciliation (2026-07-13)
+
+A civic-tech consultant reviewed an early spec draft (archived at
+`docs/spec-review-by-civic-tech-consultant.md`). That document is a **greenfield
+MVP proposal** written without visibility into the built system; it independently
+converges on much of this design, proposes several worthwhile additions, and
+contains two items that conflict with binding rules or with the data itself. This
+section records the reconciliation. Where the review conflicts with README v2 or
+this spec, README v2 and this spec win.
+
+### 10.1 Accepted (to implement, in dependency order)
+
+| # | Item | Decision | Notes |
+|---|---|---|---|
+| 2 | Externalize lexicons to `rules.json` / `junk_science.json` | Adopt | Move the term knowledge now in `tabular.py` / `forensic.py` into editable JSON config, loaded at startup. Do first (item 1 builds on it). |
+| 1 | Anchor-term + assertive-modifier + word-window matching | Adopt | Generalizes our multi-word paired phrases into `(anchor, modifier, distance)` triples. Our corpus mining already showed paired phrasings carry the signal; measure precision/recall against the existing test set before/after. |
+| 8 | Batson (racial jury exclusion) flag | Adopt | Add to the misconduct lexicon; detectable from record language ("Batson", "peremptory strike"). |
+| 9 | Single-witness-conviction flag | Adopt (thin) | Implement as an alias/wrapper over the existing outcome-determinative signal, not a new subsystem. |
+| 5 | Minimum-viable-text threshold (>= 1000 chars) | Adopt | Too-short retrieved text routes to the manual-paste fallback instead of flagging on thin text. |
+| 4 | Manual text-paste fallback | Adopt | New volunteer paste path when retrieval returns nothing; better than landing silently in `NOT_FOUND`. |
+| 17 | Curated recall fixture + confusion matrix | Adopt (addition) | A complement to, not a replacement for, the NRE calibration store. |
+| 16 | Recall gate | Adopt softened | Enforce 100% recall on a **curated fixture of known-forensic cases**; keep real-world recall a reported metric, never a hard merge gate. |
+
+### 10.2 Reframed
+
+| # | Item | Decision |
+|---|---|---|
+| 11 | `defense_strategy_incompatibility` (self-defense / consent) | Adopt **only** as a neutral, checkable descriptive note ("trial defense conceded the act"). It must never feed a viability score or a "less likely innocent" signal (README §3.1). If it cannot be phrased neutrally, drop it. |
+
+### 10.3 Mapped (vocabulary / existing category, no new machinery)
+
+| # | Item | Decision |
+|---|---|---|
+| 7 | Explicit state-machine names (RAW_INGEST, PENDING_VOLUNTEER_CLEANUP, …) | Our `record_status` lifecycle (NOT_STARTED → ACQUIRING → LINKING → LINKED / NOT_FOUND / ERROR) already covers this. Map the review's names to ours for shared vocabulary; do **not** rename the code. |
+| 12 | `biological_evidence_availability` (DNA/semen/blood) | Fold into the existing `EVIDENCE_PRESERVATION` category; not a new flag. |
+
+### 10.4 Rejected / corrected
+
+| # | Item | Decision & reason |
+|---|---|---|
+| 13 | **NRE as a named-bad-actor registry** (`nre_misconduct.db`; Levenshtein NER against it, review §4.3 / §6.4) | **Rejected and corrected.** The shipped NRE dataset (`data/raw/exonerations/fullcsv.csv`) has exactly one name column — the *exoneree's* — and encodes misconduct only as per-case Yes/No **type** flags (e.g. "PR: Prosecutor Misconduct", "OF - OM by Police Officer", "FA - OM by Forensic Analyst"). It contains **no official names**. Building a registry of "known prosecutors/judges/analysts" from it is impossible and would reintroduce the defamation risk README §6.5 guards against. Correct design (unchanged): the named-official registry is seeded from **chapter-provided formal disciplinary records** (`data/raw/officials/*.json`, ships only a fictional template); NRE is used only for **case-level per-role calibration**. |
+| 6 | CAP (Caselaw Access Project) API as a live fallback (review §4.2) | **Rejected — obsolete.** CAP's own site: the CAP API and search tool were **sunset on 2024-09-05**; search/API access is now provided through the Free Law Project at CourtListener (which we already use), with legacy pre-2020 coverage available via bulk static files at `static.case.law`. There is no CAP API to fall back to. If deeper legacy coverage is ever needed, add it as an **offline bulk source**, not a live API. |
+| 14 | Migrate storage to SQLite (review §2) | **Rejected for now.** JSONL/JSON stores are git-committed, diff-able, and reproducible from a clone; the app is single-process and needs no concurrent-writer support. Revisit only if that changes. |
+| 15 | Greenfield `app/` directory layout (review §8) | **Rejected.** Adopting it wholesale discards the working `src/risk_engine/` package, its test suite, and the live deployment. |
+| 3 | spaCy for tokenize/lemmatize (review §2 / §6) | **Rejected for now.** The core is deliberately stdlib-only. Reconsider only if item 1's measured recall proves insufficient without stemming. |
+
+### 10.5 Open (decide before building)
+
+| # | Item | Status |
+|---|---|---|
+| 10 | Vulnerable-defendant confession (minors / long interrogation, review §5) | **Undecided.** False Confession is currently a deliberate blind spot (README §6.5). In-bounds only if reframed as a checkable *circumstance* ("defendant was a minor", "interrogation exceeded N hours"), never a "false confession detected" claim. Confirm reframe-or-keep-blind-spot before building. |
