@@ -23,7 +23,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
+from . import database as _db
 from .config import settings
+from .database import DEFAULT_DB_PATH
 from .intake.record import IntakeRecord
 
 #: Where submitted case files are persisted by default (JSON Lines).
@@ -200,10 +202,111 @@ def case_file_from_intake(intake: IntakeRecord, *, case_id: str | None = None) -
 
 def save_case_files(
     files: list[CaseFile],
-    path: str | Path = DEFAULT_CASE_FILE_STORE_PATH,
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> Path:
-    """Persist case files as JSON Lines, one per line (atomic write)."""
-    path = Path(path)
+    """Replace the whole submitted-intake store with ``files`` (canonical: SQLite).
+
+    Rewrites the ``case_files`` table and refreshes the git-diffable JSONL export
+    beside the database. Kept for bulk/whole-store saves; the request path uses
+    the targeted :meth:`CaseFileStore.add` / :func:`update_case_file` instead so
+    a background writer never clobbers a concurrent one.
+    """
+    files = list(files)
+    with _STORE_LOCK:
+        with _db.connection(db_path) as conn:
+            conn.execute("DELETE FROM case_files")
+            conn.executemany(_INSERT_SQL, [_case_file_to_row(cf) for cf in files])
+        _export_case_files_jsonl(files, db_path=db_path)
+    return Path(db_path)
+
+
+def load_case_files(db_path: str | Path = DEFAULT_DB_PATH) -> list[CaseFile]:
+    """Load all submitted case files from the SQLite store."""
+    with _db.connection(db_path) as conn:
+        rows = conn.execute("SELECT * FROM case_files").fetchall()
+    return [_row_to_case_file(r) for r in rows]
+
+
+# --- SQLite row (de)serialization + JSONL export ------------------------------
+
+#: JSON-encoded columns on the ``case_files`` table.
+_JSON_FILE_COLUMNS: tuple[str, ...] = ("fields", "unmapped", "record_searches")
+
+#: Column order for inserts (matches the schema in ``database.py``).
+_FILE_COLUMNS: tuple[str, ...] = (
+    "case_id", "provenance", "submitted_at", "chapter", "applicant_ref", "fields",
+    "unmapped", "record_status", "source_key", "record_searches", "retrieval_error",
+    "retrieved_at", "pdf_stored", "pdf_original_name",
+)
+
+_INSERT_SQL = (
+    "INSERT OR REPLACE INTO case_files ("
+    + ", ".join(_FILE_COLUMNS)
+    + ") VALUES ("
+    + ", ".join("?" for _ in _FILE_COLUMNS)
+    + ")"
+)
+
+#: Name of the reviewable JSONL export, written beside the database.
+_EXPORT_NAME = "case_files.jsonl"
+
+
+def _case_file_to_row(cf: CaseFile) -> tuple:
+    """Positional row for :data:`_INSERT_SQL` (JSON columns encoded, bools -> int)."""
+    return (
+        cf.case_id,
+        cf.provenance,
+        cf.submitted_at,
+        cf.chapter,
+        cf.applicant_ref,
+        json.dumps(cf.fields, sort_keys=True),
+        json.dumps(list(cf.unmapped)),
+        cf.record_status,
+        cf.source_key,
+        json.dumps(list(cf.record_searches)),
+        cf.retrieval_error,
+        cf.retrieved_at,
+        1 if cf.pdf_stored else 0,
+        cf.pdf_original_name,
+    )
+
+
+def _row_to_case_file(row) -> CaseFile:
+    """Rebuild a :class:`CaseFile` from a ``case_files`` row."""
+    return CaseFile(
+        case_id=row["case_id"],
+        provenance=row["provenance"],
+        submitted_at=row["submitted_at"],
+        chapter=row["chapter"],
+        applicant_ref=row["applicant_ref"],
+        fields=json.loads(row["fields"]),
+        unmapped=json.loads(row["unmapped"]),
+        record_status=row["record_status"],
+        source_key=row["source_key"],
+        record_searches=json.loads(row["record_searches"]),
+        retrieval_error=row["retrieval_error"],
+        retrieved_at=row["retrieved_at"],
+        pdf_stored=bool(row["pdf_stored"]),
+        pdf_original_name=row["pdf_original_name"],
+    )
+
+
+def _export_jsonl_path(db_path: str | Path) -> Path:
+    """Where the reviewable JSONL export lives (beside the database).
+
+    Guards against the degenerate case where the database itself is named like
+    the export (e.g. a test fixture), so the export never overwrites the DB.
+    """
+    p = Path(db_path)
+    export = p.with_name(_EXPORT_NAME)
+    if export == p:
+        export = p.with_name(f"{p.stem}.{_EXPORT_NAME}")
+    return export
+
+
+def _export_case_files_jsonl(files: list[CaseFile], *, db_path: str | Path) -> Path:
+    """Write the git-diffable JSONL export of the case files (atomic)."""
+    path = _export_jsonl_path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8") as fh:
@@ -214,18 +317,9 @@ def save_case_files(
     return path
 
 
-def load_case_files(path: str | Path = DEFAULT_CASE_FILE_STORE_PATH) -> list[CaseFile]:
-    """Load case files from JSON Lines, or ``[]`` when the file is absent."""
-    path = Path(path)
-    if not path.exists():
-        return []
-    files: list[CaseFile] = []
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                files.append(CaseFile.from_dict(json.loads(line)))
-    return files
+def _refresh_export(db_path: str | Path) -> None:
+    """Re-emit the JSONL export from the current DB contents."""
+    _export_case_files_jsonl(load_case_files(db_path), db_path=db_path)
 
 
 #: Serialises the load-modify-save cycle so a background retrieval job and the
@@ -242,28 +336,41 @@ _UPDATABLE_FIELDS: frozenset[str] = frozenset(
 def update_case_file(
     case_id: str,
     *,
-    path: str | Path = DEFAULT_CASE_FILE_STORE_PATH,
+    db_path: str | Path = DEFAULT_DB_PATH,
     **changes: object,
 ) -> CaseFile | None:
-    """Apply field changes to one persisted case file, atomically and safely.
+    """Apply field changes to one persisted case file with a targeted SQL UPDATE.
 
-    Reloads the store under a lock, mutates the matching row, and rewrites the
-    whole file, so concurrent writers (the async retrieval job vs. a new save)
-    can't lose each other's updates. Returns the updated file, or ``None`` when
-    no row matches ``case_id``.
+    The lifecycle transition (the state machine) is a single-row ``UPDATE``, so a
+    background retrieval job and a concurrent save never clobber each other.
+    Returns the updated file, or ``None`` when no row matches ``case_id``.
     """
     unknown = set(changes) - _UPDATABLE_FIELDS
     if unknown:
         raise ValueError(f"cannot update unknown case-file fields: {sorted(unknown)}")
+    if not changes:
+        return CaseFileStore.load(db_path).get(case_id)
+    assignments = ", ".join(f"{field} = ?" for field in changes)
+    values = [
+        json.dumps(list(value)) if field in _JSON_FILE_COLUMNS else value  # type: ignore[arg-type]
+        for field, value in changes.items()
+    ]
     with _STORE_LOCK:
-        files = load_case_files(path)
-        for case_file in files:
-            if case_file.case_id == case_id:
-                for key, value in changes.items():
-                    setattr(case_file, key, value)
-                save_case_files(files, path)
-                return case_file
-    return None
+        with _db.connection(db_path) as conn:
+            exists = conn.execute(
+                "SELECT 1 FROM case_files WHERE case_id = ?", (case_id,)
+            ).fetchone()
+            if exists is None:
+                return None
+            conn.execute(
+                f"UPDATE case_files SET {assignments} WHERE case_id = ?",
+                (*values, case_id),
+            )
+            row = conn.execute(
+                "SELECT * FROM case_files WHERE case_id = ?", (case_id,)
+            ).fetchone()
+        _refresh_export(db_path)
+    return _row_to_case_file(row)
 
 
 #: Handles are our own opaque ids (``CF-<hex>`` case ids, uuid hex tokens); this
@@ -344,8 +451,8 @@ class CaseFileStore:
         self.files = list(files or [])
 
     @classmethod
-    def load(cls, path: str | Path = DEFAULT_CASE_FILE_STORE_PATH) -> "CaseFileStore":
-        return cls(load_case_files(path))
+    def load(cls, db_path: str | Path = DEFAULT_DB_PATH) -> "CaseFileStore":
+        return cls(load_case_files(db_path))
 
     def __len__(self) -> int:
         return len(self.files)
@@ -363,9 +470,12 @@ class CaseFileStore:
     def add(
         self,
         case_file: CaseFile,
-        path: str | Path = DEFAULT_CASE_FILE_STORE_PATH,
+        db_path: str | Path = DEFAULT_DB_PATH,
     ) -> CaseFile:
-        """Append a case file and persist the whole store (atomic)."""
+        """Persist one new case file (targeted upsert) and refresh the export."""
         self.files.append(case_file)
-        save_case_files(self.files, path)
+        with _STORE_LOCK:
+            with _db.connection(db_path) as conn:
+                conn.execute(_INSERT_SQL, _case_file_to_row(case_file))
+            _refresh_export(db_path)
         return case_file

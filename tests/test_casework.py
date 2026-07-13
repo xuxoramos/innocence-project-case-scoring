@@ -76,7 +76,7 @@ def _intake(name: str = "Thomas Doswell") -> IntakeRecord:
 def _saved(tmp_path, name: str = "Thomas Doswell"):
     intake = _intake(name)
     case_file = case_file_from_intake(intake)
-    path = tmp_path / "case_files.jsonl"
+    path = tmp_path / "app.db"
     save_case_files([case_file], path)
     return case_file, intake, path
 
@@ -109,7 +109,7 @@ def test_run_retrieval_job_links_matching_records(tmp_path):
         case_file.case_id,
         intake,
         source_key="casework_test_src",
-        path=path,
+        db_path=path,
         pipeline=default_pipeline(),
     )
     assert status == RECORD_STATUS_LINKED
@@ -132,7 +132,7 @@ def test_run_retrieval_job_gap_is_not_found(tmp_path):
         case_file.case_id,
         intake,
         source_key="casework_test_src",
-        path=path,
+        db_path=path,
         pipeline=default_pipeline(),
     )
     assert status == RECORD_STATUS_NOT_FOUND
@@ -152,7 +152,7 @@ def test_run_retrieval_job_captures_error(tmp_path, monkeypatch):
 
     monkeypatch.setattr(casework, "build_packet_for_intake", _boom)
     status = run_retrieval_job(
-        case_file.case_id, intake, source_key="casework_test_src", path=path
+        case_file.case_id, intake, source_key="casework_test_src", db_path=path
     )
     assert status == RECORD_STATUS_ERROR
 
@@ -167,18 +167,18 @@ def test_run_retrieval_job_captures_error(tmp_path, monkeypatch):
 
 def test_update_case_file_updates_matching_row(tmp_path):
     case_file, _intake_rec, path = _saved(tmp_path)
-    updated = update_case_file(case_file.case_id, path=path, record_status="LINKING")
+    updated = update_case_file(case_file.case_id, db_path=path, record_status="LINKING")
     assert updated is not None
     assert load_case_files(path)[0].record_status == "LINKING"
 
 
 def test_update_case_file_missing_returns_none(tmp_path):
     _saved(tmp_path)
-    path = tmp_path / "case_files.jsonl"
-    assert update_case_file("CF-nope", path=path, record_status="LINKING") is None
+    path = tmp_path / "app.db"
+    assert update_case_file("CF-nope", db_path=path, record_status="LINKING") is None
 
 
 def test_update_case_file_rejects_unknown_field(tmp_path):
     case_file, _intake_rec, path = _saved(tmp_path)
     with pytest.raises(ValueError):
-        update_case_file(case_file.case_id, path=path, bogus="x")
+        update_case_file(case_file.case_id, db_path=path, bogus="x")

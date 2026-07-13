@@ -19,7 +19,7 @@ from pathlib import Path
 
 from .calibration import calibrated_pipeline
 from .casefiles import (
-    DEFAULT_CASE_FILE_STORE_PATH,
+    DEFAULT_DB_PATH,
     RECORD_STATUS_ERROR,
     RECORD_STATUS_LINKED,
     RECORD_STATUS_LINKING,
@@ -59,7 +59,7 @@ def run_retrieval_job(
     intake: IntakeRecord,
     *,
     source_key: str,
-    path: str | Path = DEFAULT_CASE_FILE_STORE_PATH,
+    db_path: str | Path = DEFAULT_DB_PATH,
     pipeline: Pipeline | None = None,
 ) -> str:
     """Retrieve and link court records for one saved case file (runs to completion).
@@ -69,7 +69,7 @@ def run_retrieval_job(
     status. Any retrieval error is captured on the file (``ERROR``) rather than
     raised, so a background caller never crashes silently.
     """
-    update_case_file(case_id, path=path, record_status=RECORD_STATUS_LINKING)
+    update_case_file(case_id, db_path=db_path, record_status=RECORD_STATUS_LINKING)
     try:
         packet = build_packet_for_intake(
             intake,
@@ -80,7 +80,7 @@ def run_retrieval_job(
     except Exception as exc:  # network/source errors are captured, not raised
         update_case_file(
             case_id,
-            path=path,
+            db_path=db_path,
             record_status=RECORD_STATUS_ERROR,
             retrieval_error=str(exc),
             retrieved_at=_now(),
@@ -90,7 +90,7 @@ def run_retrieval_job(
     status = _status_from_records(packet.records)
     update_case_file(
         case_id,
-        path=path,
+        db_path=db_path,
         record_status=status,
         record_searches=_serialize_records(packet.records),
         retrieval_error="",
@@ -104,7 +104,7 @@ def start_retrieval(
     intake: IntakeRecord,
     *,
     source_key: str,
-    path: str | Path = DEFAULT_CASE_FILE_STORE_PATH,
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> threading.Thread:
     """Kick off :func:`run_retrieval_job` on a daemon thread and return at once.
 
@@ -114,7 +114,7 @@ def start_retrieval(
     thread = threading.Thread(
         target=run_retrieval_job,
         args=(case_id, intake),
-        kwargs={"source_key": source_key, "path": path},
+        kwargs={"source_key": source_key, "db_path": db_path},
         daemon=True,
     )
     thread.start()
