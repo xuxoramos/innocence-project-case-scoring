@@ -112,6 +112,7 @@ class DemoMarvelSource(AcquisitionSource):
 
     jurisdiction = "demo_marvel"
     display_name = "Demo — de-identified public cases (offline)"
+    offline = True
 
     def __init__(self) -> None:
         self._by_id = {c.case_id: c for c in _DEMO_CASES}

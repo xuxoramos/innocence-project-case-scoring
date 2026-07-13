@@ -24,6 +24,7 @@ _FIXTURE = [
 class AlleghenyCountySource(AcquisitionSource):
     jurisdiction = "allegheny_pa"
     display_name = "Allegheny County, PA (Pittsburgh)"
+    offline = True
 
     def discover(self, limit: int | None = None) -> Iterable[Case]:
         rows = _FIXTURE if limit is None else _FIXTURE[:limit]

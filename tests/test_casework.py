@@ -30,6 +30,7 @@ class _FakeSource(AcquisitionSource):
 
     jurisdiction = "casework_test_src"
     display_name = "Casework Test Source"
+    offline = True
 
     _DATA = [
         (

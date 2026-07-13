@@ -15,6 +15,7 @@ import base64
 import os
 import re
 import secrets
+from datetime import datetime, timezone
 from html import escape as html_escape
 from pathlib import Path
 from urllib.parse import urlencode
@@ -29,6 +30,7 @@ from ..acquisition import get_source, list_sources
 from ..calibration import calibrated_pipeline
 from ..casefiles import (
     RECORD_STATUS_ACQUIRING,
+    RECORD_STATUS_LINKED,
     CaseFileStore,
     case_file_from_intake,
     case_pdf_path,
@@ -36,13 +38,18 @@ from ..casefiles import (
     promote_staged_pdf,
     save_staged_pdf,
     staged_pdf_path,
+    update_case_file,
 )
 from ..casework import start_retrieval
 from ..innocence_project import find_ip_case
 from ..intake.structuring import structure_intake
 from ..models import SCOPE_STATEMENT
 from ..pdf_intake import prefill_intake_from_pdf
-from ..retrieval import build_packet_for_intake
+from ..retrieval import (
+    MIN_RECORD_TEXT_CHARS,
+    build_packet_for_intake,
+    packet_from_pasted_text,
+)
 from ..store import CaseStore, THIN_SUPPORT
 from .forms import (
     APPLICANT_REF_FIELD,
@@ -349,6 +356,7 @@ def case_file_detail(request: Request, case_id: str) -> HTMLResponse:
             "scope_statement": SCOPE_STATEMENT,
             "case": case_file_view(case_file),
             "back_url": back_url,
+            "min_chars": MIN_RECORD_TEXT_CHARS,
         },
     )
 
@@ -389,6 +397,46 @@ def case_file_pdf(case_id: str) -> FileResponse:
     return FileResponse(
         path, media_type="application/pdf", content_disposition_type="inline"
     )
+
+
+@app.post("/cases/submitted/{case_id}/paste-text", response_class=HTMLResponse)
+async def case_file_paste_text(request: Request, case_id: str) -> HTMLResponse:
+    """Manual-paste fallback: flag reviewer-pasted record text (spec v3 item 4).
+
+    When live retrieval returned no usable record, the reviewer can paste the
+    appellate-brief text. It is flagged by the same pipeline, the case file is
+    marked ``LINKED`` with a manual-paste record, and the packet fragment is
+    returned inline. Text shorter than the minimum-viable threshold (item 5) is
+    rejected rather than flagged on a stub.
+    """
+    form = await request.form()
+    text = str(form.get("text", "")).strip()
+    case_file = CaseFileStore.load().get(case_id)
+    if case_file is None:
+        raise HTTPException(status_code=404, detail="not found")
+    if len(text) < MIN_RECORD_TEXT_CHARS:
+        return templates.TemplateResponse(
+            request,
+            "_paste_error.html",
+            {"min_chars": MIN_RECORD_TEXT_CHARS, "got": len(text), "case_id": case_id},
+        )
+    intake = case_file.to_intake()
+    packet = packet_from_pasted_text(
+        intake, text, case_id=case_id, pipeline=calibrated_pipeline()
+    )
+    searches = [
+        {"record_type": r.record_type, "status": r.status.value, "detail": r.detail}
+        for r in packet.records
+    ]
+    update_case_file(
+        case_id,
+        record_status=RECORD_STATUS_LINKED,
+        source_key="manual_paste",
+        record_searches=searches,
+        retrieval_error="",
+        retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    )
+    return templates.TemplateResponse(request, "_packet.html", {"packet": packet_view(packet)})
 
 
 @app.get("/cases/{nre_id}", response_class=HTMLResponse)

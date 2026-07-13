@@ -22,6 +22,11 @@ class AcquisitionSource(abc.ABC):
     jurisdiction: str = ""
     #: Human-readable name, e.g. ``"Allegheny County, PA (Pittsburgh)"``.
     display_name: str = ""
+    #: Offline fixture source (no network). The minimum-viable-text threshold
+    #: (spec v3 item 5) is skipped for these, so small deterministic fixtures
+    #: still flag; live sources apply the threshold and route thin text to the
+    #: manual-paste fallback (item 4).
+    offline: bool = False
 
     @abc.abstractmethod
     def discover(self, limit: int | None = None) -> Iterable[Case]:

@@ -137,6 +137,26 @@
       {% include "_record_status.html" %}
     </section>
 
+    {% if case.record_terminal and case.linked_record_count == 0 %}
+    <section class="block">
+      <h3>Manual text fallback</h3>
+      <p class="intake-note">
+        No usable court record was retrieved. If you have the appellate opinion or brief
+        text, paste it below and the tool will flag it directly. It never guesses &mdash; it
+        flags only what the pasted text says, the same way it flags a retrieved record.
+      </p>
+      <form hx-post="/cases/submitted/{{ case.case_id }}/paste-text"
+            hx-target="#paste-result" hx-swap="innerHTML">
+        <textarea name="text" rows="8"
+          style="width:100%; box-sizing:border-box; font:13px/1.5 monospace; padding:.6rem;
+                 border:1px solid var(--line); border-radius:6px;"
+          placeholder="Paste the appellate opinion / brief text (at least {{ min_chars }} characters)"></textarea>
+        <button type="submit" style="margin-top:.5rem;">Flag pasted text</button>
+      </form>
+      <div id="paste-result" style="margin-top:1rem;"></div>
+    </section>
+    {% endif %}
+
     {% if case.has_pdf %}
     <section class="block">
       <h3>4. Original intake PDF</h3>

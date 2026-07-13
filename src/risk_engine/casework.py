@@ -17,6 +17,7 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .acquisition import get_source
 from .calibration import calibrated_pipeline
 from .casefiles import (
     DEFAULT_DB_PATH,
@@ -29,7 +30,7 @@ from .casefiles import (
 from .intake.record import IntakeRecord
 from .packet import RecordSearch, RecordSearchStatus
 from .processing import Pipeline
-from .retrieval import build_packet_for_intake
+from .retrieval import MIN_RECORD_TEXT_CHARS, build_packet_for_intake
 
 
 def _now() -> str:
@@ -71,11 +72,16 @@ def run_retrieval_job(
     """
     update_case_file(case_id, db_path=db_path, record_status=RECORD_STATUS_LINKING)
     try:
+        source = get_source(source_key)
+        # Offline fixtures ship short, deterministic text; only live sources apply
+        # the minimum-viable-text threshold (spec v3 item 5).
+        min_text = 0 if getattr(source, "offline", False) else MIN_RECORD_TEXT_CHARS
         packet = build_packet_for_intake(
             intake,
             source_key=source_key,
             pipeline=pipeline or calibrated_pipeline(),
             case_id=case_id,
+            min_text_chars=min_text,
         )
     except Exception as exc:  # network/source errors are captured, not raised
         update_case_file(

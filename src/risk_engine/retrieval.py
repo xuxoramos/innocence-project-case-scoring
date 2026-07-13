@@ -54,6 +54,11 @@ NAME_MATCH_FLOOR: float = 0.6
 #: consistent; outside it the match is kept but the year is flagged inconsistent.
 YEAR_TOLERANCE: int = 15
 
+#: Minimum retrieved opinion length (characters) to flag on (spec v3 item 5).
+#: A live record shorter than this is treated as too thin to flag reliably and
+#: surfaces as a gap, routing the reviewer to the manual-paste fallback.
+MIN_RECORD_TEXT_CHARS: int = 1000
+
 _YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
 _NONWORD_RE = re.compile(r"[^a-z0-9\s]+")
 _WS_RE = re.compile(r"\s+")
@@ -187,6 +192,11 @@ def score_candidate(criteria: MatchCriteria, case: Case) -> CandidateMatch:
     return CandidateMatch(case=case, name_score=score, year_consistent=year_consistent)
 
 
+def _case_text_len(case: Case) -> int:
+    """Total normalized text length across a case's documents (spec v3 item 5)."""
+    return sum(len(d.normalized_text or "") for d in case.documents)
+
+
 def _classify_document(doc: Document) -> str:
     """Map a retrieved document to one of the expected record types."""
     uri = (doc.source_uri or "").lower()
@@ -243,6 +253,7 @@ def retrieve_for_intake(
     pipeline: Pipeline | None = None,
     expected_records: Iterable[str] = DEFAULT_EXPECTED_RECORDS,
     limit: int | None = 50,
+    min_text_chars: int = 0,
 ) -> RetrievalResult:
     """Find, fetch, and flag the records that match an intake.
 
@@ -251,6 +262,11 @@ def retrieve_for_intake(
     each through the flagging ``pipeline``, and assembles the Section 6.6 record
     states. Never ranks or scores the case; ``matches`` are ordered by match
     *confidence in the identity*, not by concern.
+
+    ``min_text_chars`` (spec v3 item 5) drops a matched record whose retrieved
+    text is too thin to flag reliably, so it surfaces as a gap and the reviewer
+    is offered the manual-paste fallback rather than flags on a stub. Default 0
+    (no threshold); the async save flow passes a real value for live sources.
     """
     source = get_source(source_key)
     criteria = criteria_from_intake(intake)
@@ -267,6 +283,8 @@ def retrieve_for_intake(
     matches.sort(key=lambda m: m.confidence, reverse=True)
 
     cases: list[Case] = [pipeline.process(source.fetch(m.case)) for m in matches]
+    if min_text_chars > 0:
+        cases = [c for c in cases if _case_text_len(c) >= min_text_chars]
     # Attach the case-seriousness descriptor (spec v3 §3.4 severity axis) to every
     # flag from the offense the applicant reported. It is a per-element labelled
     # fact, never summed into a case-level number (README v2 §3.1).
@@ -293,6 +311,7 @@ def build_packet_for_intake(
     expected_records: Iterable[str] = DEFAULT_EXPECTED_RECORDS,
     limit: int | None = 50,
     case_id: str | None = None,
+    min_text_chars: int = 0,
 ) -> CasePacket:
     """End-to-end Section 5 flow: intake -> retrieval -> flags -> case packet."""
     result = retrieve_for_intake(
@@ -301,6 +320,7 @@ def build_packet_for_intake(
         pipeline=pipeline,
         expected_records=expected_records,
         limit=limit,
+        min_text_chars=min_text_chars,
     )
     return assemble_packet(
         case_id=case_id or intake.applicant_ref or "intake",
@@ -308,3 +328,51 @@ def build_packet_for_intake(
         flags=result.flags,
         records=result.record_searches,
     )
+
+
+def packet_from_pasted_text(
+    intake: IntakeRecord,
+    text: str,
+    *,
+    case_id: str,
+    pipeline: Pipeline | None = None,
+) -> CasePacket:
+    """Flag reviewer-pasted record text — the manual-paste fallback (spec v3 item 4).
+
+    When live retrieval returns no usable record (or text too thin, item 5), the
+    reviewer can paste the appellate-brief text. It is flagged by the same
+    pipeline as a single ``pasted appellate text`` record, so the fallback path
+    produces the same element flags and the same §6.6 record state as retrieval —
+    never a score, never a guess about the pasted text's completeness.
+    """
+    pipeline = pipeline or default_pipeline()
+    case = Case(case_id=case_id, jurisdiction="manual_paste")
+    case.documents.append(
+        Document(
+            doc_id=f"{case_id}-PASTE",
+            case_id=case_id,
+            source_uri="manual-paste://appellate-text",
+            media_type="text/plain",
+            needs_ocr=False,
+            normalized_text=text,
+        )
+    )
+    case = pipeline.process(case)
+    offense = intake.get("offense_convicted_of")
+    seriousness = seriousness_descriptor(offense.value if offense else "")
+    if seriousness:
+        for flag in case.flags:
+            flag.descriptors = {**flag.descriptors, **seriousness}
+    status = (
+        RecordSearchStatus.FOUND_WITH_FLAGS
+        if case.flags
+        else RecordSearchStatus.FOUND_NO_FLAGS
+    )
+    records = [
+        RecordSearch(
+            record_type="pasted appellate text",
+            status=status,
+            detail="manual paste by reviewer",
+        )
+    ]
+    return assemble_packet(case_id=case_id, intake=intake, flags=case.flags, records=records)
