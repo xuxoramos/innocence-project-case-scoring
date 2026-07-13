@@ -1,5 +1,5 @@
 {
-  "_comment": "Case-record circumstance & official-misconduct lexemes for the keyword-seeded TabularStep (README v2 Section 5.2). Externalized from tabular.py so terms/confidences are an editable, reviewable diff. Loaded by risk_engine.processing.tabular. Array order is preserved. Each term = [phrase, extraction_confidence]; terms below the confidence floor (0.6) are recorded as features but suppressed as flags. misconduct_types maps a term to [type_label, gravity] (NRE 'Government Misconduct' categories; spec v3 Appendix B).",
+  "_comment": "Case-record circumstance & official-misconduct lexemes for the keyword-seeded TabularStep (README v2 Section 5.2). Externalized from tabular.py so terms/confidences are an editable, reviewable diff. Loaded by risk_engine.processing.tabular. Array order is preserved. Each term = [phrase, extraction_confidence]; terms below the confidence floor (0.6) are recorded as features but suppressed as flags. A lexeme may also carry `windowed` rules {anchors, modifiers, window, confidence, term} that fire when an anchor and a modifier co-occur within `window` words (spec v3 item 1). misconduct_types maps a term to [type_label, gravity] (NRE 'Government Misconduct' categories; spec v3 Appendix B).",
   "lexemes": [
     {
       "label": "informant",
@@ -20,6 +20,15 @@
         ["false testimony", 0.65],
         ["in exchange for", 0.6],
         ["plea deal", 0.5]
+      ],
+      "windowed": [
+        {
+          "anchors": ["informant", "snitch", "cellmate", "accomplice", "co-defendant", "codefendant", "jailhouse"],
+          "modifiers": ["testified", "testimony", "deal", "leniency", "immunity", "reduced", "dropped", "exchange", "cooperate", "cooperated", "cooperation"],
+          "window": 6,
+          "confidence": 0.7,
+          "term": null
+        }
       ]
     },
     {

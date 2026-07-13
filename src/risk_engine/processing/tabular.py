@@ -26,6 +26,7 @@ from dataclasses import dataclass
 
 from ..config import settings
 from ..lexicons import load_rules
+from ..matching import WindowRule, find_windowed
 from ..models import Case, Flag, FlagBasis, FlagCategory
 from .base import ProcessingStep, sentence_around
 
@@ -39,11 +40,24 @@ class _Lexeme:
     basis: FlagBasis
     terms: tuple[tuple[str, float], ...]  # (term, extraction_confidence)
     inference_note: str | None = None
+    #: Optional anchor+modifier+window rules (spec v3 item 1). Fire when an anchor
+    #: and a modifier co-occur within ``window`` words; evaluated alongside terms.
+    windowed: tuple[WindowRule, ...] = ()
 
 
 #: Parsed ``lexicons/rules.json`` — the editable source of the lexemes and the
 #: misconduct-type map below (spec v3 §10, item 2). Edit the JSON, not this module.
 _RULES = load_rules()
+
+
+def _window_rule_from_json(entry: dict) -> WindowRule:
+    return WindowRule(
+        anchors=frozenset(a.lower() for a in entry["anchors"]),
+        modifiers=frozenset(m.lower() for m in entry["modifiers"]),
+        window=int(entry["window"]),
+        confidence=float(entry["confidence"]),
+        term=entry.get("term"),
+    )
 
 
 def _lexeme_from_json(entry: dict) -> _Lexeme:
@@ -54,6 +68,7 @@ def _lexeme_from_json(entry: dict) -> _Lexeme:
         basis=FlagBasis(entry["basis"]),
         terms=tuple((term, conf) for term, conf in entry["terms"]),
         inference_note=entry.get("inference_note"),
+        windowed=tuple(_window_rule_from_json(w) for w in entry.get("windowed", [])),
     )
 
 
@@ -99,21 +114,27 @@ class TabularStep(ProcessingStep):
     def run(self, case: Case) -> Case:
         text = " ".join(d.normalized_text or "" for d in case.documents)
         for lex, patterns in _COMPILED:
-            best: tuple[float, re.Match[str], str] | None = None
+            # best = (confidence, span_start, span_end, term) across phrase terms
+            # and windowed rules; the strongest match in the category wins.
+            best: tuple[float, int, int, str | None] | None = None
             for pattern, conf, term in patterns:
                 match = pattern.search(text)
                 if match is None:
                     continue
                 if best is None or conf > best[0]:
-                    best = (conf, match, term)
+                    best = (conf, match.start(), match.end(), term)
+            for rule in lex.windowed:
+                span = find_windowed(text, rule.anchors, rule.modifiers, rule.window)
+                if span is not None and (best is None or rule.confidence > best[0]):
+                    best = (rule.confidence, span[0], span[1], rule.term)
             # Suppress weak / crime-type-only hits below the floor (README 6.3).
             if best is None or best[0] < settings.confidence_floor:
                 case.features[lex.label] = 0
                 continue
-            conf, match, term = best
+            conf, start, end, term = best
             case.features[lex.label] = 1
             descriptors: dict[str, str] = {}
-            type_info = _MISCONDUCT_TYPE.get(term)
+            type_info = _MISCONDUCT_TYPE.get(term) if term else None
             if type_info is not None:
                 descriptors["misconduct_type"] = type_info[0]
                 descriptors["type_gravity"] = type_info[1]
@@ -122,7 +143,7 @@ class TabularStep(ProcessingStep):
                     category=lex.category,
                     basis=lex.basis,
                     extraction_confidence=conf,
-                    source_passage=sentence_around(text, match.start(), match.end()),
+                    source_passage=sentence_around(text, start, end),
                     inference_note=lex.inference_note,
                     descriptors=descriptors,
                 )

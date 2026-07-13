@@ -163,3 +163,22 @@ def test_perjured_testimony_flags_informant_without_type_descriptor():
     assert flag is not None
     assert "misconduct_type" not in flag.descriptors
 
+
+def test_windowed_rule_flags_informant_without_a_fixed_phrase():
+    # No fixed informant phrase here, but "snitch" + "leniency"/"testimony"
+    # co-occur within the window (spec v3 item 1), so the rule fires.
+    case = _case_with("A snitch was promised leniency for his testimony.")
+    flag = _flag(case, FlagCategory.INFORMANT_CIRCUMSTANCE)
+    assert flag is not None
+    assert flag.extraction_confidence >= 0.7
+    assert flag.verification_source is None
+
+
+def test_windowed_rule_needs_anchor_and_modifier_together():
+    # Anchor present but no assertive modifier nearby -> no flag (no bare-token
+    # false positive).
+    case = _case_with("The informant lived quietly in the same neighborhood.")
+    assert _flag(case, FlagCategory.INFORMANT_CIRCUMSTANCE) is None
+    assert case.features["informant"] == 0
+
+
