@@ -37,6 +37,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from .config import settings
+from .database import DEFAULT_DB_PATH
 from .dataset import DEFAULT_EXONERATION_SOURCE, LabeledExample, build_labeled_example
 from .innocence_project import tag_cases
 from .labels import ExonerationRecord
@@ -44,7 +45,9 @@ from .models import FlagCategory
 from .processing import Pipeline
 from .severity import seriousness_descriptor
 
-#: Where the backfilled case store is persisted by default (JSON Lines).
+from . import database as _db
+
+#: Where the reviewable JSONL export of the case store is written (beside the DB).
 DEFAULT_CASE_STORE_PATH: Path = settings.processed_dir / "case_store.jsonl"
 
 #: Provenance stamped on every row: this store is exoneration-sourced only.
@@ -179,17 +182,136 @@ def stored_from_example(example: LabeledExample) -> StoredCase:
     )
 
 
+def _insert_case(conn, case: StoredCase) -> None:
+    """Insert/replace one exoneration row and its normalized flags."""
+    conn.execute(
+        """
+        INSERT OR REPLACE INTO exoneration_cases
+          (nre_id, provenance, name, state, county, crime, crime_year,
+           conviction_year, matched, innocence_project, labels,
+           unmapped_factors, predicted)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (
+            case.nre_id,
+            case.provenance,
+            case.name,
+            case.state,
+            case.county,
+            case.crime,
+            case.crime_year,
+            case.conviction_year,
+            1 if case.matched else 0,
+            1 if case.innocence_project else 0,
+            json.dumps(list(case.labels)),
+            json.dumps(list(case.unmapped_factors)),
+            json.dumps(list(case.predicted)),
+        ),
+    )
+    conn.execute("DELETE FROM case_flags WHERE nre_id = ?", (case.nre_id,))
+    for flag in case.flags:
+        conn.execute(
+            """
+            INSERT INTO case_flags
+              (nre_id, category, basis, extraction_confidence,
+               source_passage, verification_source, descriptors)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                case.nre_id,
+                flag.category,
+                flag.basis,
+                flag.extraction_confidence,
+                flag.source_passage,
+                flag.verification_source,
+                json.dumps(dict(flag.descriptors)),
+            ),
+        )
+
+
+def upsert_case(case: StoredCase, *, db_path: str | Path = DEFAULT_DB_PATH) -> StoredCase:
+    """Persist one exoneration row (used per-record by the resumable backfill)."""
+    with _db.connection(db_path) as conn:
+        _insert_case(conn, case)
+    return case
+
+
 def save_cases(
     cases: Iterable[StoredCase],
-    path: str | Path = DEFAULT_CASE_STORE_PATH,
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> Path:
-    """Persist stored cases as JSON Lines, one case per line (atomic write).
+    """Replace the whole exoneration store (canonical: SQLite) and export JSONL."""
+    cases = list(cases)
+    with _db.connection(db_path) as conn:
+        conn.execute("DELETE FROM case_flags")
+        conn.execute("DELETE FROM exoneration_cases")
+        for case in cases:
+            _insert_case(conn, case)
+    export_case_store_jsonl(cases, db_path=db_path)
+    return Path(db_path)
 
-    Writes to a sibling ``.tmp`` file and renames it into place so a process
-    killed mid-write never leaves a half-written store — the basis for the
-    resumable backfill, where the file is rewritten after every record.
+
+def _row_to_stored_case(row, flags: list[StoredFlag]) -> StoredCase:
+    return StoredCase(
+        provenance=row["provenance"],
+        nre_id=row["nre_id"],
+        name=row["name"],
+        state=row["state"],
+        county=row["county"],
+        crime=row["crime"],
+        crime_year=row["crime_year"],
+        conviction_year=row["conviction_year"],
+        matched=bool(row["matched"]),
+        labels=json.loads(row["labels"]),
+        unmapped_factors=json.loads(row["unmapped_factors"]),
+        predicted=json.loads(row["predicted"]),
+        flags=flags,
+        innocence_project=bool(row["innocence_project"]),
+    )
+
+
+def load_cases(db_path: str | Path = DEFAULT_DB_PATH) -> list[StoredCase]:
+    """Load all exoneration cases (with their flags) from the SQLite store.
+
+    Returned in stable insertion order (``rowid``) so the JSONL export and any
+    stored-order view stay deterministic.
     """
-    path = Path(path)
+    with _db.connection(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM exoneration_cases ORDER BY rowid"
+        ).fetchall()
+        flag_rows = conn.execute("SELECT * FROM case_flags ORDER BY id").fetchall()
+    flags_by_id: dict[str, list[StoredFlag]] = {}
+    for fr in flag_rows:
+        flags_by_id.setdefault(fr["nre_id"], []).append(
+            StoredFlag(
+                category=fr["category"],
+                basis=fr["basis"],
+                extraction_confidence=fr["extraction_confidence"],
+                source_passage=fr["source_passage"],
+                verification_source=fr["verification_source"],
+                descriptors=json.loads(fr["descriptors"]),
+            )
+        )
+    return [_row_to_stored_case(r, flags_by_id.get(r["nre_id"], [])) for r in rows]
+
+
+#: Name of the reviewable JSONL export, written beside the database.
+_STORE_EXPORT_NAME = "case_store.jsonl"
+
+
+def _store_export_path(db_path: str | Path) -> Path:
+    """Where the reviewable JSONL export lives (beside the DB, never clobbering it)."""
+    p = Path(db_path)
+    export = p.with_name(_STORE_EXPORT_NAME)
+    if export == p:
+        export = p.with_name(f"{p.stem}.{_STORE_EXPORT_NAME}")
+    return export
+
+
+def export_case_store_jsonl(cases: Iterable[StoredCase], *, db_path: str | Path) -> Path:
+    """Write the git-diffable JSONL export of the case store (atomic)."""
+    path = _store_export_path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     with tmp.open("w", encoding="utf-8") as fh:
@@ -198,20 +320,6 @@ def save_cases(
             fh.write("\n")
     os.replace(tmp, path)
     return path
-
-
-def load_cases(path: str | Path = DEFAULT_CASE_STORE_PATH) -> list[StoredCase]:
-    """Load stored cases from JSON Lines, or ``[]`` when the file is absent."""
-    path = Path(path)
-    if not path.exists():
-        return []
-    cases: list[StoredCase] = []
-    with path.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                cases.append(StoredCase.from_dict(json.loads(line)))
-    return cases
 
 
 #: Progress callback signature: ``(done, total, status, case)`` where ``status``
@@ -270,7 +378,7 @@ def backfill_cases(
 def backfill_store(
     records: Iterable[ExonerationRecord],
     *,
-    path: str | Path = DEFAULT_CASE_STORE_PATH,
+    db_path: str | Path = DEFAULT_DB_PATH,
     match: bool = True,
     source_key: str = DEFAULT_EXONERATION_SOURCE,
     match_limit: int = 50,
@@ -280,20 +388,20 @@ def backfill_store(
 ) -> list[StoredCase]:
     """Backfill exonerations into the store, persisting after every record.
 
-    Built for the long, rate-limited matched run: each record is written to
-    ``path`` as soon as it is processed (atomic rewrite), so a killed process
-    loses at most one record. With ``resume=True`` (default) records already
-    present in the store are skipped, keyed by ``nre_id``. A matched run keeps an
-    existing *matched* row but re-does an existing *gap* row to upgrade it; an
+    Built for the long, rate-limited matched run: each record is upserted into
+    the SQLite store as soon as it is processed, so a killed process loses at
+    most one record and resumes from the DB. With ``resume=True`` (default)
+    records already present are skipped, keyed by ``nre_id``. A matched run keeps
+    an existing *matched* row but re-does an existing *gap* row to upgrade it; an
     offline (``match=False``) run keeps any existing row and never downgrades a
-    match to a gap. ``progress`` defaults to a one-line-per-record stderr log;
-    pass ``None`` to silence it.
+    match to a gap. The git-diffable JSONL export is refreshed once at the end.
+    ``progress`` defaults to a one-line-per-record stderr log; pass ``None`` to
+    silence it.
     """
     records = list(records)
     total = len(records)
-    path = Path(path)
     by_id: dict[str, StoredCase] = (
-        {case.nre_id: case for case in load_cases(path)} if resume else {}
+        {case.nre_id: case for case in load_cases(db_path)} if resume else {}
     )
     for done, record in enumerate(records, 1):
         key = record.nre_id or f"_row_{done}"
@@ -312,9 +420,10 @@ def backfill_store(
             )
         )
         by_id[key] = case
-        save_cases(by_id.values(), path)
+        upsert_case(case, db_path=db_path)
         if progress is not None:
             progress(done, total, "matched" if case.matched else "gap", case)
+    export_case_store_jsonl(by_id.values(), db_path=db_path)
     return list(by_id.values())
 
 
@@ -323,7 +432,7 @@ def backfill_store_bulk(
     *,
     clusters_path: str | Path,
     opinions_path: str | Path | None = None,
-    path: str | Path = DEFAULT_CASE_STORE_PATH,
+    db_path: str | Path = DEFAULT_DB_PATH,
     pipeline: Pipeline | None = None,
     resume: bool = True,
     progress: ProgressFn | None = _default_progress,
@@ -347,9 +456,8 @@ def backfill_store_bulk(
 
     records = list(records)
     total = len(records)
-    path = Path(path)
     by_id: dict[str, StoredCase] = (
-        {case.nre_id: case for case in load_cases(path)} if resume else {}
+        {case.nre_id: case for case in load_cases(db_path)} if resume else {}
     )
 
     def _key(done: int, record: ExonerationRecord) -> str:
@@ -397,9 +505,10 @@ def backfill_store_bulk(
             labeled_example_from_candidate(record, matches.get(key), pipeline=pipeline)  # type: ignore[arg-type]
         )
         by_id[key] = case
-        save_cases(by_id.values(), path)
+        upsert_case(case, db_path=db_path)
         if progress is not None:
             progress(done, total, "matched" if case.matched else "gap", case)
+    export_case_store_jsonl(by_id.values(), db_path=db_path)
     return list(by_id.values())
 
 
@@ -445,8 +554,8 @@ class CaseStore:
         self.cases = list(cases or [])
 
     @classmethod
-    def load(cls, path: str | Path = DEFAULT_CASE_STORE_PATH) -> "CaseStore":
-        store = cls(load_cases(path))
+    def load(cls, db_path: str | Path = DEFAULT_DB_PATH) -> "CaseStore":
+        store = cls(load_cases(db_path))
         # Best-effort overlay: tag Innocence Project cases from the shipped
         # roster. No-ops (leaves every flag False) when the roster is absent.
         tag_cases(store.cases)

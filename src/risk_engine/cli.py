@@ -51,7 +51,8 @@ from .intake.structuring import structure_intake
 from .labels import load_known_exonerations
 from .models import FlagCategory
 from .retrieval import build_packet_for_intake
-from .store import DEFAULT_CASE_STORE_PATH, CaseStore, backfill_store, backfill_store_bulk
+from .database import DEFAULT_DB_PATH
+from .store import CaseStore, backfill_store, backfill_store_bulk
 
 
 def run_intake(
@@ -95,7 +96,7 @@ def run_calibrate(
     out: str | None,
     save: bool,
     from_store: bool = False,
-    store_path: str = str(DEFAULT_CASE_STORE_PATH),
+    store_path: str = str(DEFAULT_DB_PATH),
 ) -> str:
     """Produce the per-element calibration table.
 
@@ -180,13 +181,13 @@ def run_backfill(
             records,
             clusters_path=clusters_path,
             opinions_path=opinions_path,
-            path=out,
+            db_path=out,
             resume=resume,
         )
     else:
         cases = backfill_store(
             records,
-            path=out,
+            db_path=out,
             match=match,
             source_key=source_key,
             match_limit=match_limit,
@@ -268,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
     cal.add_argument(
         "--store",
         dest="store_path",
-        default=str(DEFAULT_CASE_STORE_PATH),
+        default=str(DEFAULT_DB_PATH),
         help="case store to derive from when --from-store is set",
     )
 
@@ -286,7 +287,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     bf.add_argument(
         "--out",
-        default=str(DEFAULT_CASE_STORE_PATH),
+        default=str(DEFAULT_DB_PATH),
         help="where to write the case store (JSON Lines)",
     )
     bf.add_argument(

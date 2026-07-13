@@ -134,7 +134,7 @@ def test_backfill_store_bulk_end_to_end_and_resume(tmp_path):
         records,
         clusters_path=clusters,
         opinions_path=opinions,
-        path=store,
+        db_path=store,
         progress=None,
     )
     by_id = {c.nre_id: c for c in cases}
@@ -152,7 +152,7 @@ def test_backfill_store_bulk_end_to_end_and_resume(tmp_path):
         records,
         clusters_path=clusters,
         opinions_path=opinions,
-        path=store,
+        db_path=store,
         progress=None,
     )
     assert {c.nre_id for c in again} == {"NRE-1", "NRE-2"}

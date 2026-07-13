@@ -176,7 +176,7 @@ def test_backfill_store_persists_each_record_and_logs_progress(tmp_path):
     events: list[tuple[int, int, str]] = []
     cases = backfill_store(
         [_record()],
-        path=path,
+        db_path=path,
         match=True,
         source_key="store_test_src",
         progress=lambda done, total, status, case: events.append((done, total, status)),
@@ -188,11 +188,11 @@ def test_backfill_store_persists_each_record_and_logs_progress(tmp_path):
 
 def test_backfill_store_resume_skips_already_linked(tmp_path):
     path = tmp_path / "store.jsonl"
-    backfill_store([_record()], path=path, source_key="store_test_src", progress=None)
+    backfill_store([_record()], db_path=path, source_key="store_test_src", progress=None)
     statuses: list[str] = []
     backfill_store(
         [_record()],
-        path=path,
+        db_path=path,
         source_key="store_test_src",
         progress=lambda d, t, status, c: statuses.append(status),
     )
@@ -201,12 +201,12 @@ def test_backfill_store_resume_skips_already_linked(tmp_path):
 
 def test_backfill_store_matched_run_upgrades_a_prior_gap(tmp_path):
     path = tmp_path / "store.jsonl"
-    backfill_store([_record()], path=path, match=False, progress=None)  # offline gap
+    backfill_store([_record()], db_path=path, match=False, progress=None)  # offline gap
     assert load_cases(path)[0].matched is False
     statuses: list[str] = []
     backfill_store(
         [_record()],
-        path=path,
+        db_path=path,
         match=True,
         source_key="store_test_src",
         progress=lambda d, t, status, c: statuses.append(status),
@@ -217,11 +217,11 @@ def test_backfill_store_matched_run_upgrades_a_prior_gap(tmp_path):
 
 def test_backfill_store_no_resume_reprocesses(tmp_path):
     path = tmp_path / "store.jsonl"
-    backfill_store([_record()], path=path, source_key="store_test_src", progress=None)
+    backfill_store([_record()], db_path=path, source_key="store_test_src", progress=None)
     statuses: list[str] = []
     backfill_store(
         [_record()],
-        path=path,
+        db_path=path,
         source_key="store_test_src",
         resume=False,
         progress=lambda d, t, status, c: statuses.append(status),
