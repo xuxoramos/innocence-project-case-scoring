@@ -63,6 +63,7 @@ from .forms import (
     SOURCE_FIELD,
     case_detail_view,
     case_file_view,
+    factor_display,
     form_field_groups,
     intake_datalists,
     packet_view,
@@ -543,6 +544,7 @@ def analytics(request: Request) -> HTMLResponse:
     Nothing here combines a single case into a score or rank (Section 3.1).
     """
     store = CaseStore.load()
+    agreement = store.agreement()
     return templates.TemplateResponse(
         request,
         "analytics.html",
@@ -551,10 +553,11 @@ def analytics(request: Request) -> HTMLResponse:
             "total": len(store),
             "matched_count": store.matched_count,
             "gap_count": store.gap_count,
-            "by_category": store.by_category(),
+            "by_category": [(factor_display(v)[0], n) for v, n in store.by_category()],
             "by_state": store.by_state(),
             "by_unmapped_factor": store.by_unmapped_factor(),
-            "agreement": store.agreement(),
+            "agreement": agreement,
+            "category_label": {a.category: factor_display(a.category)[0] for a in agreement},
             "thin_support": THIN_SUPPORT,
         },
     )

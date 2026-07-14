@@ -87,7 +87,7 @@
     {% else %}<p class="note">No mapped factors recorded.</p>{% endif %}
 
     {% if by_unmapped_factor %}
-    <h2>Blind-spot factors the engine cannot check<span class="info" tabindex="0" title="NRE factors with no schema-checkable counterpart, so the engine is structurally blind to them and never flags them. Charted so that blindness stays visible, not hidden.">i</span></h2>
+    <h2>Blind-spot factors the tool cannot check<span class="info" tabindex="0" title="NRE factors with no schema-checkable counterpart, so the tool is structurally blind to them and never flags them. Charted so that blindness stays visible, not hidden.">i</span></h2>
     {% set un_max = by_unmapped_factor[0][1] %}
     <div class="bars">
       {% for label, n in by_unmapped_factor %}
@@ -96,7 +96,7 @@
       <div class="v">{{ n }}</div>
       {% endfor %}
     </div>
-    <p class="note">These NRE factors have no schema-checkable counterpart, so the engine is
+    <p class="note">These NRE factors have no schema-checkable counterpart, so the tool is
       structurally blind to them. Shown so that blindness stays visible.</p>
     {% endif %}
 
@@ -112,17 +112,17 @@
     </div>
     {% endif %}
 
-    <h2>Per-element flag-vs-label agreement (matched cases only)<span class="info" tabindex="0" title="How well each engine flag agrees with NRE ground truth, over matched cases only (gaps are excluded, never charged as misses). Read one row at a time; the numbers are per category and are never combined into a single case score.">i</span></h2>
+    <h2>Per-element flag-vs-label agreement (matched cases only)<span class="info" tabindex="0" title="How well each tool flag agrees with NRE ground truth, over matched cases only (gaps are excluded, never charged as misses). Read one row at a time; the numbers are per category and are never combined into a single case score.">i</span></h2>
     {% if agreement %}
     <table>
       <thead>
-        <tr><th>Category</th><th class="num">Fired<span class="info" tabindex="0" title="Number of matched cases in which the engine emitted this flag.">i</span></th><th class="num">Support<span class="info" tabindex="0" title="Number of matched cases whose NRE ground truth includes this category. This is the denominator for recall.">i</span></th>
-          <th class="num">Precision<span class="info" tabindex="0" title="Of the cases where this flag fired, the fraction that were truly this NRE factor. This is what calibration uses as the flag's confidence.">i</span></th><th class="num">Recall<span class="info" tabindex="0" title="Of the cases that truly have this factor, the fraction the engine flagged.">i</span></th><th>Notes<span class="info" tabindex="0" title="Flags a row whose support is below the threshold, where the estimate rests on too few cases to trust.">i</span></th></tr>
+        <tr><th>Category</th><th class="num">Fired<span class="info" tabindex="0" title="Number of matched cases in which the tool emitted this flag.">i</span></th><th class="num">Support<span class="info" tabindex="0" title="Number of matched cases whose NRE ground truth includes this category. This is the denominator for recall.">i</span></th>
+          <th class="num">Precision<span class="info" tabindex="0" title="Of the cases where this flag fired, the fraction that were truly this NRE factor. This is what calibration uses as the flag's confidence.">i</span></th><th class="num">Recall<span class="info" tabindex="0" title="Of the cases that truly have this factor, the fraction the tool flagged.">i</span></th><th>Notes<span class="info" tabindex="0" title="Flags a row whose support is below the threshold, where the estimate rests on too few cases to trust.">i</span></th></tr>
       </thead>
       <tbody>
         {% for a in agreement %}
         <tr>
-          <td>{{ a.category }}</td>
+          <td>{{ category_label.get(a.category, a.category) }}</td>
           <td class="num">{{ a.fired }}</td>
           <td class="num">{{ a.support }}</td>
           <td class="num">{% if a.precision is none %}&mdash;{% else %}{{ "%.2f"|format(a.precision) }}{% endif %}</td>
