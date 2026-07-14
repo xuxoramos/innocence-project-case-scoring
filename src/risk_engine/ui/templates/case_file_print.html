@@ -110,6 +110,7 @@
       {% if f.source_passage %}<div class="passage">&ldquo;{{ f.source_passage }}&rdquo;</div>{% endif %}
       {% if f.descriptors %}<div class="descriptors">{% for d in f.descriptors %}<span><strong>{{ d.label }}:</strong> {{ d.value }}</span>{% endfor %}</div>{% endif %}
       {% if f.inference_note %}<div class="fmeta">note: {{ f.inference_note }}</div>{% endif %}
+      {% if f.reference %}<div class="fmeta">Reference set: NRE contributing factor in <strong>{{ f.reference.count }}</strong> of {{ f.reference.total }} confirmed exonerations (descriptive frequency, not a prediction about this case).</div>{% endif %}
       <div class="disp"><span class="lab">Reviewer disposition:</span> {{ f.disposition_label }}{% if f.disposition_note %} &mdash; {{ f.disposition_note }}{% endif %}{% if f.disposition_at %} <span style="color:#888;">({{ f.disposition_at }})</span>{% endif %}</div>
     </div>
     {% endfor %}

@@ -351,7 +351,22 @@ def _descriptor_view(descriptors: dict[str, str]) -> list[dict]:
     ]
 
 
-def _flag_view(flag) -> dict:
+def _reference_context(category: str, reference) -> dict | None:
+    """Population frequency for a category, or ``None`` if not tracked/absent.
+
+    ``reference`` is the map from :func:`risk_engine.reference.category_reference`.
+    The result is a descriptive population fact (how many confirmed exonerations
+    carried this NRE factor), never a prediction about the case at hand (§3.2).
+    """
+    if not reference:
+        return None
+    ctx = reference.get(category)
+    if not ctx or ctx.get("count", 0) <= 0:
+        return None
+    return {"count": ctx["count"], "total": ctx["total"]}
+
+
+def _flag_view(flag, reference=None) -> dict:
     return {
         "basis": flag.basis.value,
         "inferred": flag.basis is FlagBasis.INFERRED,
@@ -361,10 +376,11 @@ def _flag_view(flag) -> dict:
         "inference_note": flag.inference_note,
         "verification_source": flag.verification_source,
         "descriptors": _descriptor_view(flag.descriptors),
+        "reference": _reference_context(flag.category.value, reference),
     }
 
 
-def packet_view(packet: CasePacket) -> dict:
+def packet_view(packet: CasePacket, reference=None) -> dict:
     """Turn an assembled packet into a plain dict for the Jinja template."""
     intake_groups: list[dict] = []
     missing: list[str] = []
@@ -398,7 +414,7 @@ def packet_view(packet: CasePacket) -> dict:
     flag_groups = [
         {
             "label": _pretty(group.category.value),
-            "flags": [_flag_view(f) for f in group.flags],
+            "flags": [_flag_view(f, reference) for f in group.flags],
         }
         for group in packet.flag_groups
     ]
@@ -492,7 +508,7 @@ def case_detail_view(case, ip_case=None) -> dict:
     }
 
 
-def case_file_view(case_file) -> dict:
+def case_file_view(case_file, reference=None) -> dict:
     """Enrich one submitted :class:`~risk_engine.casefiles.CaseFile` for display.
 
     Shows the saved intake as the same §5.1 form the reviewer filled in, plus the
@@ -502,7 +518,7 @@ def case_file_view(case_file) -> dict:
     persisted per-element flags are shown, each with its reviewer disposition —
     still per-element and never combined into a case-level number (§3.1).
     """
-    flag_groups = _stored_flag_groups(case_file.flags)
+    flag_groups = _stored_flag_groups(case_file.flags, reference)
     return {
         "case_id": case_file.case_id,
         "name": case_file.name,
@@ -531,7 +547,7 @@ def case_file_view(case_file) -> dict:
     }
 
 
-def stored_flag_view(flag: dict) -> dict:
+def stored_flag_view(flag: dict, reference=None) -> dict:
     """Enrich one persisted case-file flag dict for the template (with disposition)."""
     label, description = factor_display(flag.get("category", ""))
     disposition = flag.get("disposition", DISPOSITION_UNDECIDED)
@@ -549,6 +565,7 @@ def stored_flag_view(flag: dict) -> dict:
         "inference_note": flag.get("inference_note", ""),
         "verification_source": flag.get("verification_source"),
         "descriptors": _descriptor_view(flag.get("descriptors") or {}),
+        "reference": _reference_context(flag.get("category", ""), reference),
         "disposition": disposition,
         "disposition_label": DISPOSITION_DISPLAY.get(disposition, disposition),
         "disposition_note": flag.get("disposition_note", ""),
@@ -556,9 +573,9 @@ def stored_flag_view(flag: dict) -> dict:
     }
 
 
-def _stored_flag_groups(flags: list[dict]) -> list[dict]:
+def _stored_flag_groups(flags: list[dict], reference=None) -> list[dict]:
     """Group persisted case-file flags by category (enum order), each flag enriched."""
-    views = [stored_flag_view(f) for f in flags]
+    views = [stored_flag_view(f, reference) for f in flags]
     groups: list[dict] = []
     for category in FlagCategory:
         members = [v for v in views if v["category"] == category.value]

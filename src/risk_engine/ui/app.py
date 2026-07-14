@@ -53,6 +53,7 @@ from ..retrieval import (
     packet_from_pasted_text,
 )
 from ..packet import serialize_packet_flags
+from ..reference import category_reference
 from ..store import CaseStore, THIN_SUPPORT
 from .forms import (
     APPLICANT_REF_FIELD,
@@ -161,7 +162,7 @@ async def flag(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "_packet.html",
-        {"packet": packet_view(packet)},
+        {"packet": packet_view(packet, category_reference())},
     )
 
 
@@ -361,7 +362,7 @@ def case_file_detail(request: Request, case_id: str) -> HTMLResponse:
         "case_file.html",
         {
             "scope_statement": SCOPE_STATEMENT,
-            "case": case_file_view(case_file),
+            "case": case_file_view(case_file, category_reference()),
             "back_url": back_url,
             "min_chars": MIN_RECORD_TEXT_CHARS,
         },
@@ -383,7 +384,7 @@ def case_file_print(request: Request, case_id: str) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "case_file_print.html",
-        {"scope_statement": SCOPE_STATEMENT, "case": case_file_view(case_file)},
+        {"scope_statement": SCOPE_STATEMENT, "case": case_file_view(case_file, category_reference())},
     )
 
 
@@ -464,7 +465,7 @@ async def case_file_paste_text(request: Request, case_id: str) -> HTMLResponse:
         retrieval_error="",
         retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
-    return templates.TemplateResponse(request, "_packet.html", {"packet": packet_view(packet)})
+    return templates.TemplateResponse(request, "_packet.html", {"packet": packet_view(packet, category_reference())})
 
 
 @app.post(
@@ -497,7 +498,7 @@ async def set_flag_disposition(
     return templates.TemplateResponse(
         request,
         "_case_file_flag.html",
-        {"f": stored_flag_view(flag), "case_id": case_id},
+        {"f": stored_flag_view(flag, category_reference()), "case_id": case_id},
     )
 
 
