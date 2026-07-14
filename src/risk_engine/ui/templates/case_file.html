@@ -110,6 +110,14 @@
       {% if case.conviction_year %}<span class="badge meta">convicted {{ case.conviction_year }}</span>{% endif %}
     </div>
 
+    <p style="margin:-.6rem 0 1.3rem;">
+      <a href="/cases/submitted/{{ case.case_id }}/print" target="_blank" rel="noopener"
+         style="font-size:.82rem; font-weight:600; color:#102a43; text-decoration:none;
+                border:1px solid var(--line); border-radius:6px; padding:.35rem .8rem;">
+        &#128424; Print / Export packet (PDF)
+      </a>
+    </p>
+
     <section class="block">
       <h3>1. Intake form</h3>
       <p class="intake-note">

@@ -365,6 +365,25 @@ def case_file_detail(request: Request, case_id: str) -> HTMLResponse:
     )
 
 
+@app.get("/cases/submitted/{case_id}/print", response_class=HTMLResponse)
+def case_file_print(request: Request, case_id: str) -> HTMLResponse:
+    """Print-optimized case packet for one submitted case file (export to PDF).
+
+    A clean, single-page work product a reviewer can print or save as PDF: the
+    intake summary, the records searched, and each flagged element with its
+    reviewer disposition and cited source. Read-only and still per-element — no
+    score, no rank, and the standing scope statement travels with it (§3.1, §6.6).
+    """
+    case_file = CaseFileStore.load().get(case_id)
+    if case_file is None:
+        raise HTTPException(status_code=404, detail="not found")
+    return templates.TemplateResponse(
+        request,
+        "case_file_print.html",
+        {"scope_statement": SCOPE_STATEMENT, "case": case_file_view(case_file)},
+    )
+
+
 @app.get("/cases/submitted/{case_id}/status", response_class=HTMLResponse)
 def case_file_status(request: Request, case_id: str) -> HTMLResponse:
     """Live record-retrieval status fragment for one case file (htmx polls this).

@@ -212,3 +212,72 @@ def test_detail_page_renders_flags_and_disposition_controls(monkeypatch):
     assert 'value="confirmed"' in resp.text  # disposition controls present
     assert "Needs review" in resp.text  # default disposition label
 
+
+def test_print_packet_renders_work_product(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.store import CaseStore
+    from risk_engine.ui import app as app_module
+
+    cf = CaseFile(
+        case_id="CF-print1",
+        provenance=PROVENANCE_SUBMITTED,
+        submitted_at="2026-01-01T00:00:00+00:00",
+        chapter="PA",
+        applicant_ref="x",
+        fields={"applicant_full_name": "Print Test"},
+        record_status=RECORD_STATUS_LINKED,
+        record_searches=[{"record_type": "opinion", "status": "found_with_flags", "detail": "op-1"}],
+        flags=serialize_packet_flags(
+            assemble_packet(
+                case_id="CF-print1",
+                flags=[
+                    Flag(
+                        category=FlagCategory.DISCREDITED_FORENSIC_METHOD,
+                        extraction_confidence=0.9,
+                        source_passage="bite-mark comparison",
+                        verification_source="NAS 2009",
+                    )
+                ],
+            )
+        ),
+    )
+
+    class _Mem(app_module.CaseFileStore):
+        @classmethod
+        def load(cls, path=None):
+            return cls([cf])
+
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda c: CaseStore([])))
+    monkeypatch.setattr(app_module, "CaseFileStore", _Mem)
+    client = TestClient(app_module.app)
+    resp = client.get("/cases/submitted/CF-print1/print")
+    assert resp.status_code == 200
+    # A printable work product with flags, disposition, and the standing scope note.
+    assert "Print / Save as PDF" in resp.text
+    assert "bite-mark comparison" in resp.text
+    assert "Reviewer disposition" in resp.text
+    assert "no case-level score" in resp.text.lower()
+
+
+def test_print_packet_missing_case_is_404(monkeypatch):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
+    from fastapi.testclient import TestClient
+
+    from risk_engine.store import CaseStore
+    from risk_engine.ui import app as app_module
+
+    class _Empty(app_module.CaseFileStore):
+        @classmethod
+        def load(cls, path=None):
+            return cls([])
+
+    monkeypatch.setattr(app_module.CaseStore, "load", classmethod(lambda c: CaseStore([])))
+    monkeypatch.setattr(app_module, "CaseFileStore", _Empty)
+    client = TestClient(app_module.app)
+    assert client.get("/cases/submitted/CF-nope/print").status_code == 404
+
+

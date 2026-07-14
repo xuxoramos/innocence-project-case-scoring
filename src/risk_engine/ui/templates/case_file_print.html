@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Case packet{% if case %} &mdash; {{ case.name }}{% endif %}</title>
+  <style>
+    :root { --line: #c9c9c9; --ink: #1a1a1a; }
+    * { box-sizing: border-box; }
+    body { font: 12pt/1.45 Georgia, "Times New Roman", serif; color: var(--ink); margin: 0;
+      background: #f3f4f6; }
+    .sheet { background: #fff; max-width: 8.2in; margin: 1rem auto; padding: 1in 0.9in;
+      box-shadow: 0 1px 6px rgba(0,0,0,.15); }
+    .toolbar { max-width: 8.2in; margin: 1rem auto 0; display: flex; gap: .5rem; justify-content: flex-end; }
+    .toolbar a, .toolbar button { font: 600 13px system-ui, sans-serif; padding: .45rem .9rem;
+      border: 1px solid #7a8; border-radius: 6px; background: #fff; color: #123; text-decoration: none; cursor: pointer; }
+    .toolbar button.primary { background: #102a43; color: #fff; border-color: #102a43; }
+    h1 { font-size: 17pt; margin: 0 0 .15rem; }
+    .sub { font-size: 10pt; color: #555; margin: 0 0 .3rem; }
+    .scope { font-size: 9.5pt; color: #444; border: 1px solid var(--line); border-left: 3px solid #102a43;
+      padding: .5rem .7rem; margin: .6rem 0 1.1rem; background: #fafbfc; }
+    h2 { font-size: 12pt; margin: 1.2rem 0 .4rem; padding-bottom: .15rem; border-bottom: 1.5px solid #333;
+      page-break-after: avoid; }
+    .meta-line { font-size: 10pt; color: #333; margin: 0 0 .2rem; }
+    table.intake { width: 100%; border-collapse: collapse; font-size: 10.5pt; }
+    table.intake th { text-align: left; width: 16rem; vertical-align: top; color: #555; font-weight: normal;
+      padding: .12rem .6rem .12rem 0; }
+    table.intake td { vertical-align: top; padding: .12rem 0; }
+    td.blank { color: #999; font-style: italic; }
+    .grp-label { font-size: 9.5pt; text-transform: uppercase; letter-spacing: .04em; color: #102a43;
+      margin: .7rem 0 .25rem; font-weight: bold; }
+    ul.records { margin: .2rem 0; padding-left: 1.2rem; font-size: 10.5pt; }
+    ul.records .gap { color: #8a6d00; }
+    .flag { border: 1px solid var(--line); border-left: 3px solid #888; border-radius: 4px;
+      padding: .45rem .7rem; margin: 0 0 .5rem; page-break-inside: avoid; }
+    .flag.disp-confirmed { border-left-color: #1b5e20; }
+    .flag.disp-not_present { border-left-color: #8a6d00; }
+    .flag.disp-needs_more { border-left-color: #29527a; }
+    .flag .el { font-weight: bold; font-size: 11pt; }
+    .flag .fmeta { font-size: 9pt; color: #555; margin: .15rem 0; }
+    .flag .passage { font-size: 10pt; padding-left: .6rem; border-left: 2px solid #ddd; margin: .3rem 0; color: #222; }
+    .flag .descriptors { font-size: 9pt; color: #334; margin: .2rem 0; }
+    .flag .descriptors span { margin-right: .8rem; }
+    .disp { font-size: 10pt; margin-top: .3rem; padding-top: .25rem; border-top: 1px dotted #ccc; }
+    .disp .lab { font-weight: bold; }
+    .notes { font-size: 10pt; color: #444; }
+    .notes ul { margin: .2rem 0; padding-left: 1.2rem; }
+    .noflags { font-size: 10pt; color: #555; }
+    .foot { margin-top: 1.4rem; padding-top: .5rem; border-top: 1px solid var(--line); font-size: 8.5pt; color: #777; }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      .sheet { box-shadow: none; margin: 0; max-width: none; padding: 0; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  {% if case %}
+  <div class="toolbar">
+    <a href="/cases/submitted/{{ case.case_id }}">&larr; Back</a>
+    <button class="primary" onclick="window.print()">Print / Save as PDF</button>
+  </div>
+  <div class="sheet">
+    <h1>{{ case.name }}</h1>
+    <p class="sub">Intake case packet &middot; {{ case.record_status_label }}
+      {% if case.retrieved_at %}&middot; records checked {{ case.retrieved_at }}{% endif %}</p>
+    <p class="scope">{{ scope_statement }}</p>
+
+    {% if case.jurisdiction or case.crime or case.conviction_year %}
+    <p class="meta-line">
+      {% if case.crime %}<strong>{{ case.crime }}</strong>{% endif %}
+      {% if case.jurisdiction %}&middot; {{ case.jurisdiction }}{% endif %}
+      {% if case.conviction_year %}&middot; convicted {{ case.conviction_year }}{% endif %}
+    </p>
+    {% endif %}
+
+    <h2>Intake</h2>
+    {% for group in case.intake_form %}
+    <div class="grp-label">{{ group.label }}</div>
+    <table class="intake">
+      {% for f in group.fields %}
+      <tr>
+        <th>{{ f.label }}</th>
+        {% if f.provided %}<td>{{ f.value }}</td>{% else %}<td class="blank">not provided</td>{% endif %}
+      </tr>
+      {% endfor %}
+    </table>
+    {% endfor %}
+
+    <h2>Records searched</h2>
+    {% if case.record_searches %}
+    <ul class="records">
+      {% for r in case.record_searches %}
+      <li class="{% if not r.found %}gap{% endif %}">{{ r.record_type }} &mdash; {{ r.status_label }}{% if r.detail %} ({{ r.detail }}){% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="noflags">No record searches recorded. An unstarted or empty search is a gap, not a clean result.</p>
+    {% endif %}
+
+    <h2>Flagged elements ({{ case.flag_count }})</h2>
+    {% if case.has_flags %}
+    {% for group in case.flag_groups %}
+    <div class="grp-label">{{ group.label }}</div>
+    {% for f in group.flags %}
+    <div class="flag disp-{{ f.disposition }}">
+      <div class="el">{{ f.element }}</div>
+      <div class="fmeta">basis: {{ f.basis }} &middot; extraction: {{ f.extraction_confidence }} &middot; OCR: {{ f.ocr_confidence }}{% if f.verification_source %} &middot; verification: {{ f.verification_source }}{% endif %}</div>
+      {% if f.source_passage %}<div class="passage">&ldquo;{{ f.source_passage }}&rdquo;</div>{% endif %}
+      {% if f.descriptors %}<div class="descriptors">{% for d in f.descriptors %}<span><strong>{{ d.label }}:</strong> {{ d.value }}</span>{% endfor %}</div>{% endif %}
+      {% if f.inference_note %}<div class="fmeta">note: {{ f.inference_note }}</div>{% endif %}
+      <div class="disp"><span class="lab">Reviewer disposition:</span> {{ f.disposition_label }}{% if f.disposition_note %} &mdash; {{ f.disposition_note }}{% endif %}{% if f.disposition_at %} <span style="color:#888;">({{ f.disposition_at }})</span>{% endif %}</div>
+    </div>
+    {% endfor %}
+    {% endfor %}
+    {% else %}
+    <p class="noflags">No elements flagged in the linked record. Per the scope note above, this is
+      <em>not</em> a finding that the case is sound &mdash; only that none of the checked elements appeared.</p>
+    {% endif %}
+
+    {% if case.notes %}
+    <h2>Notes</h2>
+    <div class="notes">
+      <ul>{% for n in case.notes %}<li>{{ n }}</li>{% endfor %}</ul>
+      <p style="font-size:9pt; color:#666;">Descriptive record facts only &mdash; not flags, not scored.</p>
+    </div>
+    {% endif %}
+
+    <p class="foot">Generated by the Intake Flagging POC. Each flag is element-level and checkable against
+      the cited source. There is no case-level score or ranking anywhere in this packet.</p>
+  </div>
+  {% else %}
+  <div class="sheet"><h1>Case file not found</h1></div>
+  {% endif %}
+</body>
+</html>
