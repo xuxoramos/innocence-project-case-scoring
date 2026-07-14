@@ -65,7 +65,7 @@
     {% for f in group.flags %}
     <div class="flag">
       <div class="meta">
-        basis: <span class="{% if f.inferred %}inferred{% endif %}">{{ f.basis }}</span>
+        basis: <span class="{% if f.inferred %}inferred{% endif %}">{{ f.basis_label }}</span>
         &middot; extraction: {{ f.extraction_confidence }}
         &middot; OCR: {{ f.ocr_confidence }}
         {% if f.verification_source %}&middot; verify: {{ f.verification_source }}{% endif %}

@@ -61,20 +61,20 @@ TERMINAL_RECORD_STATUSES: frozenset[str] = frozenset(
 #: Human-readable label per record status. Kept honest per §6.6: "not found" is a
 #: state of missing information, never "clean".
 RECORD_STATUS_DISPLAY: dict[str, str] = {
-    "NOT_STARTED": "No records retrieved yet",
-    "ACQUIRING": "Acquiring court records\u2026",
-    "LINKING": "Linking court records\u2026",
-    "LINKED": "Court records linked",
-    "NOT_FOUND": "No matching record found",
-    "ERROR": "Record retrieval failed",
+    "NOT_STARTED": "No court records looked up yet",
+    "ACQUIRING": "Looking up court records\u2026",
+    "LINKING": "Matching court records\u2026",
+    "LINKED": "Court records attached",
+    "NOT_FOUND": "No court record found yet",
+    "ERROR": "Court-record lookup failed",
 }
 
 #: Human label per persisted record-search status value (mirrors
 #: :class:`~risk_engine.packet.RecordSearchStatus`; stored as its ``.value``).
 RECORD_SEARCH_STATUS_DISPLAY: dict[str, str] = {
-    "found_with_flags": "Found \u2014 has flags",
-    "found_no_flags": "Found \u2014 no flags",
-    "not_found": "Not found (gap)",
+    "found_with_flags": "Record found \u2014 flagged",
+    "found_no_flags": "Record found \u2014 none flagged",
+    "not_found": "No court record found",
 }
 
 #: Reviewer disposition per persisted case-file flag (the human-in-the-loop
@@ -94,7 +94,7 @@ VALID_DISPOSITIONS: frozenset[str] = frozenset(
 DISPOSITION_DISPLAY: dict[str, str] = {
     DISPOSITION_UNDECIDED: "Needs review",
     DISPOSITION_CONFIRMED: "Confirmed in record",
-    DISPOSITION_NOT_PRESENT: "Not this / misfire",
+    DISPOSITION_NOT_PRESENT: "Doesn\u2019t apply here",
     DISPOSITION_NEEDS_MORE: "Needs more records",
 }
 

@@ -161,7 +161,7 @@
     <p class="provenance">
       These are <strong>confirmed exonerations</strong> from the National Registry of Exonerations,
       back-filled into the same intake schema the live form uses. The factor tags are NRE
-      ground truth; any flags are what the engine independently produced from the matched court
+      ground truth; any flags are what the tool independently produced from the matched court
       record. Cases shown as <span class="badge gap">gap</span> had no matching record retrieved
       &mdash; that is a retrieval gap, not a clean result, and not a detector miss.
       Nothing here is scored or ranked.
@@ -230,8 +230,8 @@
           <th>Crime<span class="info" tabindex="0" title="Most serious offense of conviction, as recorded by the NRE.">i</span></th>
           <th>Convicted<span class="info" tabindex="0" title="Year of the first conviction.">i</span></th>
           <th>Record<span class="info" tabindex="0" title="Whether a court record was matched. 'gap' means no record was retrieved, which is a retrieval gap, not a clean result and not a detector miss.">i</span></th>
-          <th>NRE factors (ground truth)<span class="info" tabindex="0" title="Contributing factors the NRE recorded for this exoneration. Gold tags are blind-spot factors the engine has no way to check.">i</span></th>
-          <th>Engine flags<span class="info" tabindex="0" title="Factors the engine independently flagged from the matched court record. 'none' means a record was read but nothing fired; 'n/a (gap)' means no record was matched.">i</span></th>
+          <th>NRE factors (ground truth)<span class="info" tabindex="0" title="Contributing factors the NRE recorded for this exoneration. Gold tags are blind-spot factors the tool has no way to check.">i</span></th>
+          <th>Tool-generated flags<span class="info" tabindex="0" title="Factors the tool independently flagged from the matched court record. 'none' means a record was read but nothing fired; 'n/a (gap)' means no record was matched.">i</span></th>
         </tr>
       </thead>
       <tbody>

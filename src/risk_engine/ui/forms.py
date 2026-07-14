@@ -17,6 +17,13 @@ from ..packet import CasePacket, RecordSearchStatus
 from ..models import FlagBasis, FlagCategory
 from ..casefiles import DISPOSITION_DISPLAY, DISPOSITION_UNDECIDED
 
+#: Plain-language rendering of a flag's basis (never the raw enum token). A flag
+#: is either quoted from the record or inferred from what the record says.
+BASIS_DISPLAY: dict[str, str] = {
+    FlagBasis.DIRECTLY_STATED.value: "stated in the record",
+    FlagBasis.INFERRED.value: "inferred from the record",
+}
+
 #: Schema keys rendered as multi-line text areas rather than single-line inputs.
 _MULTILINE_KEYS = frozenset(
     {
@@ -31,9 +38,9 @@ _MULTILINE_KEYS = frozenset(
 
 #: Human label + CSS state class per record-search status (Section 6.6 colours).
 _STATUS_DISPLAY: dict[RecordSearchStatus, tuple[str, str]] = {
-    RecordSearchStatus.FOUND_WITH_FLAGS: ("Found — has flags", "found-flags"),
-    RecordSearchStatus.FOUND_NO_FLAGS: ("Found — no flags", "found-clean"),
-    RecordSearchStatus.NOT_FOUND: ("Not found (gap)", "not-found"),
+    RecordSearchStatus.FOUND_WITH_FLAGS: ("Record found \u2014 flagged", "found-flags"),
+    RecordSearchStatus.FOUND_NO_FLAGS: ("Record found \u2014 none flagged", "found-clean"),
+    RecordSearchStatus.NOT_FOUND: ("No court record found", "not-found"),
 }
 
 #: Meta form fields are prefixed so they never collide with schema keys.
@@ -369,6 +376,7 @@ def _reference_context(category: str, reference) -> dict | None:
 def _flag_view(flag, reference=None) -> dict:
     return {
         "basis": flag.basis.value,
+        "basis_label": BASIS_DISPLAY.get(flag.basis.value, flag.basis.value),
         "inferred": flag.basis is FlagBasis.INFERRED,
         "extraction_confidence": f"{flag.extraction_confidence:.2f}",
         "ocr_confidence": ("n/a" if flag.ocr_confidence is None else f"{flag.ocr_confidence:.2f}"),
@@ -470,7 +478,7 @@ def case_detail_view(case, ip_case=None) -> dict:
         {
             "element": factor_display(f.category)[0],
             "element_description": factor_display(f.category)[1],
-            "basis": _pretty(f.basis),
+            "basis": BASIS_DISPLAY.get(f.basis, _pretty(f.basis)),
             "extraction_confidence": f"{f.extraction_confidence:.2f}",
             "verification_source": f.verification_source,
             "source_passage": " ".join((f.source_passage or "").split()),
@@ -558,6 +566,7 @@ def stored_flag_view(flag: dict, reference=None) -> dict:
         "element": label,
         "element_description": description,
         "basis": flag.get("basis", ""),
+        "basis_label": BASIS_DISPLAY.get(flag.get("basis", ""), flag.get("basis", "")),
         "inferred": flag.get("basis") == FlagBasis.INFERRED.value,
         "extraction_confidence": f"{float(flag.get('extraction_confidence', 0.0)):.2f}",
         "ocr_confidence": "n/a" if ocr is None else f"{float(ocr):.2f}",

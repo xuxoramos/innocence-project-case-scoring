@@ -99,7 +99,7 @@
       {% if case.crime %}<span class="badge meta">{{ case.crime }}</span>{% endif %}
       {% if case.conviction_year %}<span class="badge meta">convicted {{ case.conviction_year }}</span>{% endif %}
       <span class="badge count">{{ case.factor_count }} NRE factor(s)</span>
-      {% if case.matched %}<span class="badge count">{{ case.flag_count }} engine flag(s)</span>{% endif %}
+      {% if case.matched %}<span class="badge count">{{ case.flag_count }} flag(s) from the record</span>{% endif %}
       {% if case.innocence_project %}
         {% if case.ip %}
         <a class="badge ip" href="{{ case.ip.url }}" title="Open this exoneree's Innocence Project page">
@@ -155,7 +155,7 @@
         {% for f in case.factors %}
         <li>
           <span class="factor-name">{{ f.label }}</span>
-          <span class="pill checkable" title="The engine has a schema check for this factor">checkable</span>
+          <span class="pill checkable" title="The tool has a check for this factor">checkable</span>
           {% if f.description %}<p class="factor-desc">{{ f.description }}</p>{% endif %}
           <p class="factor-why">{{ f.rationale }}</p>
         </li>
@@ -163,7 +163,7 @@
         {% for f in case.blind_spots %}
         <li>
           <span class="factor-name blind">{{ f.name }}</span>
-          <span class="pill blind" title="A known blind spot: the engine has no way to check this from the intake record">blind spot</span>
+          <span class="pill blind" title="A known blind spot: the tool has no way to check this from the intake record">blind spot</span>
           <p class="factor-desc">{{ f.description }}</p>
           <p class="factor-why">{{ f.rationale }}</p>
         </li>
@@ -171,7 +171,7 @@
       </ul>
       <p class="muted" style="font-size:.8rem; margin:.6rem 0 0;">
         These are the factors the NRE recorded for this exoneration. &ldquo;Checkable&rdquo; factors have a
-        schema counterpart the engine can look for; &ldquo;blind spot&rdquo; factors it structurally cannot verify.
+        schema counterpart the tool can look for; &ldquo;blind spot&rdquo; factors it structurally cannot verify.
         They are listed individually, never summed into a score or rank.
       </p>
       {% else %}
@@ -180,10 +180,10 @@
     </section>
 
     <section class="block">
-      <h3>4. Engine flags</h3>
+      <h3>4. Flags from the record</h3>
       {% if not case.matched %}
       <p class="muted">
-        No court record was retrieved for this case, so the engine produced nothing to show. This is a
+        No court record was retrieved for this case, so the tool produced nothing to show. This is a
         <strong>retrieval gap</strong> &mdash; no record was found, which is not a clean result and not a detector miss.
       </p>
       {% elif not case.flags %}
@@ -230,7 +230,7 @@
     <p class="provenance">
       This is a <strong>confirmed exoneration</strong> from the National Registry of Exonerations,
       back-filled into the same intake schema the live form uses. The contributing factors are NRE
-      ground truth; any engine flags are what the engine independently produced from the matched
+      ground truth; any flags are what the tool independently produced from the matched
       court record. Nothing on this page is scored or ranked.
     </p>
     {% endif %}

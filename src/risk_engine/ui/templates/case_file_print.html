@@ -106,7 +106,7 @@
     {% for f in group.flags %}
     <div class="flag disp-{{ f.disposition }}">
       <div class="el">{{ f.element }}</div>
-      <div class="fmeta">basis: {{ f.basis }} &middot; extraction: {{ f.extraction_confidence }} &middot; OCR: {{ f.ocr_confidence }}{% if f.verification_source %} &middot; verification: {{ f.verification_source }}{% endif %}</div>
+      <div class="fmeta">basis: {{ f.basis_label }} &middot; extraction: {{ f.extraction_confidence }} &middot; OCR: {{ f.ocr_confidence }}{% if f.verification_source %} &middot; verification: {{ f.verification_source }}{% endif %}</div>
       {% if f.source_passage %}<div class="passage">&ldquo;{{ f.source_passage }}&rdquo;</div>{% endif %}
       {% if f.descriptors %}<div class="descriptors">{% for d in f.descriptors %}<span><strong>{{ d.label }}:</strong> {{ d.value }}</span>{% endfor %}</div>{% endif %}
       {% if f.inference_note %}<div class="fmeta">note: {{ f.inference_note }}</div>{% endif %}

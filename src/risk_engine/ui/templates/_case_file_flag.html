@@ -1,7 +1,7 @@
 <div class="cf-flag disp-{{ f.disposition }}" id="flag-{{ f.id }}">
   <div class="meta">
     <strong>{{ f.element }}</strong>
-    &middot; basis: <span class="{% if f.inferred %}inferred{% endif %}">{{ f.basis }}</span>
+    &middot; basis: <span class="{% if f.inferred %}inferred{% endif %}">{{ f.basis_label }}</span>
     &middot; extraction: {{ f.extraction_confidence }}
     &middot; OCR: {{ f.ocr_confidence }}
     {% if f.verification_source %}&middot; verify: {{ f.verification_source }}{% endif %}
@@ -25,7 +25,7 @@
     <form class="disp-form" hx-post="/cases/submitted/{{ case_id }}/flags/{{ f.id }}/disposition"
           hx-target="#flag-{{ f.id }}" hx-swap="outerHTML">
       <button name="disposition" value="confirmed" type="submit">Confirm</button>
-      <button name="disposition" value="not_present" type="submit">Not this</button>
+      <button name="disposition" value="not_present" type="submit">Doesn&rsquo;t apply</button>
       <button name="disposition" value="needs_more" type="submit">Needs more</button>
       <button name="disposition" value="undecided" type="submit">Clear</button>
     </form>

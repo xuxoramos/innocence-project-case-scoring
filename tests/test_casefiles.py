@@ -41,7 +41,7 @@ def test_case_file_from_intake_populates_fields_and_status():
     assert cf.crime == "Robbery"
     assert cf.jurisdiction == "Allegheny County, Pennsylvania"
     assert cf.conviction_year == 1994
-    assert cf.record_status_label == "No records retrieved yet"
+    assert cf.record_status_label == "No court records looked up yet"
 
 
 def test_case_file_conviction_year_missing_is_none():
@@ -149,7 +149,7 @@ def test_case_file_detail_route_renders_form(monkeypatch):
     assert "Submitted case file" in detail.text
     assert "Rosa Parks" in detail.text
     assert "Robbery" in detail.text
-    assert "Acquiring court records" in detail.text  # retrieval kicked off on save
+    assert "Looking up court records" in detail.text  # retrieval kicked off on save
     assert "not provided" in detail.text  # unfilled schema fields shown honestly
 
 
@@ -193,7 +193,7 @@ def test_record_status_endpoint_polls_while_in_flight(monkeypatch):
 
     resp = client.get(f"/cases/submitted/{cf.case_id}/status")
     assert resp.status_code == 200
-    assert "Linking court records" in resp.text
+    assert "Matching court records" in resp.text
     # non-terminal: carries its own poll trigger so htmx keeps checking
     assert f'hx-get="/cases/submitted/{cf.case_id}/status"' in resp.text
     assert "hx-trigger" in resp.text
@@ -211,9 +211,9 @@ def test_record_status_endpoint_stops_when_linked(monkeypatch):
 
     resp = client.get(f"/cases/submitted/{cf.case_id}/status")
     assert resp.status_code == 200
-    assert "Court records linked" in resp.text
+    assert "Court records attached" in resp.text
     assert "appellate opinion" in resp.text
-    assert "Not found (gap)" in resp.text  # the gap is shown, not hidden
+    assert "No court record found" in resp.text  # the gap is shown, not hidden
     # terminal: no poll trigger, so htmx stops
     assert "hx-trigger" not in resp.text
 
