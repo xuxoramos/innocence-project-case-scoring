@@ -68,6 +68,7 @@ from .forms import (
     parse_intake_form,
     prefilled_form_groups,
     stored_flag_view,
+    worklist_view,
 )
 
 _HERE = Path(__file__).resolve().parent
@@ -292,6 +293,7 @@ def cases(
         innocence_project=ip_filter,
     )
     submitted = CaseFileStore.load().list()
+    worklist = worklist_view(submitted)
     match_total = len(results)
     total_pages = max(1, (match_total + _CASES_PAGE_SIZE - 1) // _CASES_PAGE_SIZE)
     page = max(1, min(page, total_pages))
@@ -317,6 +319,7 @@ def cases(
             "scope_statement": SCOPE_STATEMENT,
             "results": page_results,
             "submitted": submitted,
+            "worklist": worklist,
             "match_total": match_total,
             "total": len(store),
             "states": store.states(),

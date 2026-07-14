@@ -567,3 +567,55 @@ def _stored_flag_groups(flags: list[dict]) -> list[dict]:
     return groups
 
 
+#: Record-status buckets for the intake worklist. Gap/error need a reviewer to
+#: act; acquiring/linking are in flight; linked is ready to review. A gap is a
+#: call to action, never a clean result (README v2 §6.6).
+_WORKLIST_NEEDS_ATTENTION = frozenset({"NOT_FOUND", "ERROR"})
+_WORKLIST_IN_PROGRESS = frozenset({"ACQUIRING", "LINKING", "NOT_STARTED"})
+
+
+def worklist_row(case_file) -> dict:
+    """One submitted case file reduced to the columns the worklist needs."""
+    return {
+        "case_id": case_file.case_id,
+        "name": case_file.name,
+        "jurisdiction": case_file.jurisdiction,
+        "crime": case_file.crime,
+        "conviction_year": case_file.conviction_year,
+        "record_status": case_file.record_status,
+        "record_status_label": case_file.record_status_label,
+        "submitted_at": (case_file.submitted_at or "")[:10],
+        "flag_count": case_file.flag_count,
+        "open_flag_count": case_file.open_flag_count,
+        "linked_record_count": case_file.linked_record_count,
+        "is_gap": case_file.record_status == "NOT_FOUND",
+        "is_error": case_file.record_status == "ERROR",
+    }
+
+
+def worklist_view(case_files) -> dict:
+    """Group submitted intakes into an actionable worklist (newest first).
+
+    Three buckets: ``needs_attention`` (a gap or error the reviewer must resolve,
+    e.g. by pasting the record text), ``in_progress`` (records still being
+    retrieved), and ``linked`` (a record is attached and its flags are ready to
+    review). Nothing here is scored or ranked — it is ordered by workflow state.
+    """
+    rows = [worklist_row(cf) for cf in case_files]
+    needs = [r for r in rows if r["record_status"] in _WORKLIST_NEEDS_ATTENTION]
+    progress = [r for r in rows if r["record_status"] in _WORKLIST_IN_PROGRESS]
+    linked = [r for r in rows if r["record_status"] == "LINKED"]
+    return {
+        "needs_attention": needs,
+        "in_progress": progress,
+        "linked": linked,
+        "total": len(rows),
+        "counts": {
+            "needs_attention": len(needs),
+            "in_progress": len(progress),
+            "linked": len(linked),
+            "open_flags": sum(r["open_flag_count"] for r in linked),
+        },
+    }
+
+

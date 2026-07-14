@@ -130,7 +130,7 @@ def test_saved_intake_appears_in_case_list(monkeypatch):
 
     listing = client.get("/cases")
     assert listing.status_code == 200
-    assert "Submitted intakes" in listing.text
+    assert "Case worklist" in listing.text
     assert "Rosa Parks" in listing.text
     cid = _MemCaseFileStore._shared[0].case_id
     assert f'href="/cases/submitted/{cid}"' in listing.text

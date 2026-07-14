@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Exoneration cases &mdash; Intake Flagging POC</title>
+  <title>Case worklist &mdash; Intake Flagging POC</title>
   <style>
     :root { --gap: #b00020; --found: #1b5e20; --clean: #455a64; --line: #d0d0d0; }
     body { font: 15px/1.5 system-ui, sans-serif; margin: 0; color: #1a1a1a; }
@@ -55,60 +55,109 @@
     .count { color: #555; font-size: .85rem; margin: 0 0 .8rem; }
     .empty { color: #777; border: 1px dashed var(--line); border-radius: 6px; padding: 1.5rem; max-width: 60rem; }
     code { background: #f2f2f2; padding: .05rem .3rem; border-radius: 3px; }
+    .wl-bucket { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 1rem; overflow: hidden; }
+    .wl-bucket > h3 { margin: 0; font-size: .82rem; text-transform: uppercase; letter-spacing: .03em;
+      padding: .5rem .8rem; background: #f4f7fb; border-bottom: 1px solid var(--line); }
+    .wl-bucket.attention > h3 { background: #fff5f5; color: #8a1c1c; }
+    .wl-bucket.progress > h3 { background: #f5f9fd; color: #29527a; }
+    .wl-bucket.linked > h3 { background: #f3faf4; color: #1b5e20; }
+    .wl-bucket .cnt { font-weight: 800; }
+    .wl-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; padding: .55rem .8rem;
+      border-bottom: 1px solid #eee; }
+    .wl-row:last-child { border-bottom: 0; }
+    .wl-row .who { flex: 1 1 16rem; min-width: 12rem; }
+    .wl-row .who a { color: #102a43; font-weight: 600; text-decoration: none; }
+    .wl-row .who a:hover { text-decoration: underline; }
+    .wl-row .who .sub { display: block; font-size: .76rem; color: #777; }
+    .wl-row .cta { font-size: .8rem; font-weight: 600; text-decoration: none; border-radius: 5px;
+      padding: .3rem .7rem; white-space: nowrap; }
+    .wl-row .cta.resolve { background: #b00020; color: #fff; }
+    .wl-row .cta.review { background: #102a43; color: #fff; }
+    .wl-row .cta.done { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+    .wl-row .spin { display: inline-block; width: .7rem; height: .7rem; margin-right: .3rem; border-radius: 50%;
+      border: 2px solid #b7c7d6; border-top-color: #4a90d9; animation: wl-spin .8s linear infinite; vertical-align: -1px; }
+    @keyframes wl-spin { to { transform: rotate(360deg); } }
+    h2.section { font-size: 1.05rem; margin: 2rem 0 .5rem; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Exoneration cases</h1>
+    <h1>Case worklist</h1>
     <p>{{ scope_statement }}</p>
   </header>
   <nav class="tabs">
     <a href="/">Intake</a>
-    <a href="/cases" class="active">Exoneration cases</a>
+    <a href="/cases" class="active">Cases</a>
     <a href="/analytics">Analytics</a>
     <a href="/data-sources">Data sources</a>
   </nav>
   <main>
-    {% if submitted %}
-    <section class="submitted-section" style="margin: 0 0 2rem;">
-      <h2 style="font-size: 1rem; margin: 0 0 .5rem;">Submitted intakes</h2>
+    <section class="worklist" style="margin: 0 0 1rem;">
       <p class="provenance">
-        These are <strong>intakes submitted through the live form</strong> and saved to the
-        case list. They are kept separate from the confirmed exonerations below and are
-        never commingled with them. When an intake is saved, its public court records are
-        pulled in the background &mdash; a case that turns up no record is shown as a gap,
-        never as a clean result.
+        <strong>Intakes submitted through the live form</strong>, organized by what needs your
+        attention. Kept entirely separate from the confirmed exonerations below and never
+        commingled. A case that turned up no record is a <strong>gap to resolve</strong>, never a
+        clean result &mdash; paste the record text to flag it. Nothing here is scored or ranked.
       </p>
-      <table>
-        <thead>
-          <tr>
-            <th>Applicant</th>
-            <th>Jurisdiction</th>
-            <th>Crime</th>
-            <th>Convicted</th>
-            <th>Records</th>
-            <th>Submitted</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in submitted %}
-          <tr>
-            <td><a class="applicant" href="/cases/submitted/{{ f.case_id }}" title="Open case file">{{ f.name }}</a></td>
-            <td>{{ f.jurisdiction or "&mdash;" | safe }}</td>
-            <td>{{ f.crime or "&mdash;" | safe }}</td>
-            <td>{{ f.conviction_year or "&mdash;" | safe }}</td>
-            <td>
-              {% set cls = "linked" if f.record_status == "LINKED" else "notfound" if f.record_status == "NOT_FOUND" else "error" if f.record_status == "ERROR" else "pending" %}
-              <span class="badge {{ cls }}" title="{{ f.record_status_label }}">{{ f.record_status_label }}</span>
-            </td>
-            <td>{{ f.submitted_at[:10] }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </section>
-    {% endif %}
 
+      {% if worklist.total == 0 %}
+      <div class="empty">No intakes submitted yet. Use the <a href="/">Intake</a> tab and click
+        <strong>Save</strong> to add a case to the worklist.</div>
+      {% else %}
+
+      {% if worklist.needs_attention %}
+      <div class="wl-bucket attention">
+        <h3>Needs attention &middot; <span class="cnt">{{ worklist.counts.needs_attention }}</span></h3>
+        {% for r in worklist.needs_attention %}
+        <div class="wl-row">
+          <span class="who">
+            <a href="/cases/submitted/{{ r.case_id }}">{{ r.name }}</a>
+            <span class="sub">{{ r.crime or "offense not provided" }}{% if r.jurisdiction %} &middot; {{ r.jurisdiction }}{% endif %} &middot; {{ r.record_status_label }}</span>
+          </span>
+          <a class="cta resolve" href="/cases/submitted/{{ r.case_id }}#records">Add record text &rarr;</a>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if worklist.in_progress %}
+      <div class="wl-bucket progress">
+        <h3>Retrieving records &middot; <span class="cnt">{{ worklist.counts.in_progress }}</span></h3>
+        {% for r in worklist.in_progress %}
+        <div class="wl-row">
+          <span class="who">
+            <a href="/cases/submitted/{{ r.case_id }}">{{ r.name }}</a>
+            <span class="sub">{{ r.crime or "offense not provided" }}{% if r.jurisdiction %} &middot; {{ r.jurisdiction }}{% endif %}</span>
+          </span>
+          <span class="sub"><span class="spin"></span>{{ r.record_status_label }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if worklist.linked %}
+      <div class="wl-bucket linked">
+        <h3>Records linked &middot; <span class="cnt">{{ worklist.counts.linked }}</span>{% if worklist.counts.open_flags %} &middot; {{ worklist.counts.open_flags }} flag(s) to review{% endif %}</h3>
+        {% for r in worklist.linked %}
+        <div class="wl-row">
+          <span class="who">
+            <a href="/cases/submitted/{{ r.case_id }}">{{ r.name }}</a>
+            <span class="sub">{{ r.crime or "offense not provided" }}{% if r.jurisdiction %} &middot; {{ r.jurisdiction }}{% endif %} &middot; {{ r.flag_count }} flag(s), {{ r.linked_record_count }} record(s)</span>
+          </span>
+          {% if r.open_flag_count %}
+          <a class="cta review" href="/cases/submitted/{{ r.case_id }}">Review {{ r.open_flag_count }} flag(s) &rarr;</a>
+          {% else %}
+          <a class="cta done" href="/cases/submitted/{{ r.case_id }}/print" target="_blank" rel="noopener">Reviewed &middot; print packet</a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% endif %}
+    </section>
+
+    <h2 class="section">Reference: confirmed exonerations</h2>
     <p class="provenance">
       These are <strong>confirmed exonerations</strong> from the National Registry of Exonerations,
       back-filled into the same intake schema the live form uses. The factor tags are NRE

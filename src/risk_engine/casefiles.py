@@ -194,6 +194,18 @@ class CaseFile:
         return sum(1 for r in self.record_searches if r.get("status") != "not_found")
 
     @property
+    def flag_count(self) -> int:
+        """Persisted per-element flags on this case file (listed, never summed)."""
+        return len(self.flags)
+
+    @property
+    def open_flag_count(self) -> int:
+        """Flags still awaiting a reviewer disposition (the work still to do)."""
+        return sum(
+            1 for f in self.flags if f.get("disposition", "undecided") == "undecided"
+        )
+
+    @property
     def has_pdf(self) -> bool:
         """Whether the original uploaded intake PDF is retained with this file."""
         return self.pdf_stored
