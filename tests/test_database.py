@@ -82,7 +82,7 @@ def test_case_file_import_and_status(tmp_path):
         "fields": {"applicant_full_name": "Jane Doe"},
         "unmapped": [],
         "record_status": "ACQUIRING",
-        "source_key": "demo_marvel",
+        "source_key": "demo_famous",
         "record_searches": [],
         "retrieval_error": "",
         "retrieved_at": "",

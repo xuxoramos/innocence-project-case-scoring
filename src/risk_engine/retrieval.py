@@ -201,8 +201,20 @@ def _case_text_len(case: Case) -> int:
 
 
 def _classify_document(doc: Document) -> str:
-    """Map a retrieved document to one of the expected record types."""
+    """Map a retrieved document to one of the expected record types.
+
+    A source may state the record type explicitly via ``metadata["record_type"]``
+    (e.g. a docket vs. the appellate opinion); otherwise it is inferred from the
+    document URI / media type. Everything text-like defaults to the opinion.
+    """
+    explicit = (doc.metadata or {}).get("record_type")
+    if explicit:
+        return str(explicit)
     uri = (doc.source_uri or "").lower()
+    if "docket" in uri:
+        return "trial court docket"
+    if "post-conviction" in uri or "pcra" in uri:
+        return "post-conviction filings"
     if "opinion" in uri or doc.media_type == "text/plain":
         return "appellate opinion"
     return "case record"

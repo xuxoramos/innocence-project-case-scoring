@@ -571,10 +571,11 @@ _SOURCE_DESCRIPTIONS: dict[str, dict[str, str]] = {
         "scope": "Placeholder Allegheny County (Pittsburgh) stubs — a pilot seam, not real "
         "opinions yet.",
     },
-    "demo_marvel": {
+    "demo_famous": {
         "kind": "Offline fixture",
-        "scope": "De-identified real public opinions used only for demos. Never training or "
-        "label data.",
+        "scope": "Real, famous exonerations (Harward, Huffington, Chmiel) with their real, "
+        "public-domain appellate opinions and trial-court docket metadata. Demo only; never "
+        "training or label data.",
     },
     "appellate_cl": {
         "kind": "Live API (CourtListener)",
