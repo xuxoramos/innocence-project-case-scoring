@@ -109,13 +109,13 @@ FACTOR_DISPLAY: dict[str, tuple[str, str]] = {
     ),
 }
 
-#: Descriptions for the NRE factors the engine has no schema check for — the
+#: Descriptions for the NRE factors the tool has no schema check for — the
 #: known blind spots (§6.5). Keyed by the NRE factor-column name stored verbatim.
 BLIND_SPOT_DISPLAY: dict[str, str] = {
     "False Confession": (
-        "The defendant gave a confession later shown to be false. The engine has "
+        "The defendant gave a confession later shown to be false. The tool has "
         "no way to check this from the intake record, so it is a known blind spot: "
-        "a factor the engine can never flag on its own."
+        "a factor the tool can never flag on its own."
     ),
     "Official Misconduct": (
         "The NRE roll-up of official misconduct. The per-role columns (prosecutor, "
@@ -123,14 +123,14 @@ BLIND_SPOT_DISPLAY: dict[str, str] = {
         "unchecked to avoid double-counting."
     ),
     "Inadequate Legal Defense": (
-        "Ineffective assistance of defense counsel. The engine has no way to check "
+        "Ineffective assistance of defense counsel. The tool has no way to check "
         "this from the intake record, so it is a known blind spot: a factor the "
-        "engine can never flag on its own."
+        "tool can never flag on its own."
     ),
 }
 
 #: The NRE factor-column(s) that back each schema-checkable category. This is the
-#: concrete data behind a "checkable" tag: the Registry field the engine reads to
+#: concrete data behind a "checkable" tag: the Registry field the tool reads to
 #: verify the factor. Inverted from ``labels.NRE_FACTOR_COLUMNS`` so the detail
 #: view can show *why* a factor is checkable, not just that it is.
 CATEGORY_TO_NRE_COLUMNS: dict[str, list[str]] = {}
@@ -143,7 +143,7 @@ for _cat_value in CATEGORY_TO_NRE_COLUMNS:
 #: "blind spot" tag, keyed by the NRE factor-column name stored verbatim.
 BLIND_SPOT_REASON: dict[str, str] = {
     "False Confession": (
-        "No intake-schema field records a confession, so the engine has no data to "
+        "No intake-schema field records a confession, so the tool has no data to "
         "test this factor against."
     ),
     "Official Misconduct": (
@@ -154,7 +154,7 @@ BLIND_SPOT_REASON: dict[str, str] = {
     ),
     "Inadequate Legal Defense": (
         "No intake-schema field records the quality of defense counsel, so the "
-        "engine has no data to test this factor against."
+        "tool has no data to test this factor against."
     ),
 }
 
@@ -167,18 +167,18 @@ def factor_display(value: str) -> tuple[str, str]:
 def _checkable_rationale(value: str) -> str:
     """Plain-language reason a factor is tagged "checkable", naming the NRE field.
 
-    The concrete data behind the tag: the Registry factor-column(s) the engine
+    The concrete data behind the tag: the Registry factor-column(s) the tool
     reads to verify this factor. Falls back to a generic sentence if the value
     is not one of the mapped categories.
     """
     cols = CATEGORY_TO_NRE_COLUMNS.get(value, [])
     if not cols:
-        return "The engine has a schema check for this factor."
+        return "The tool has a check for this factor."
     quoted = " or ".join(f"\u201c{c}\u201d" for c in cols)
     field_word = "field" if len(cols) == 1 else "fields"
     return (
         f"Tagged checkable because the National Registry records it in its "
-        f"{quoted} {field_word}, which the engine reads to verify the factor."
+        f"{quoted} {field_word}, which the tool reads to verify the factor."
     )
 
 
@@ -463,9 +463,9 @@ def case_detail_view(case, ip_case=None) -> dict:
     blind_spots = [
         {
             "name": f,
-            "description": BLIND_SPOT_DISPLAY.get(f, "NRE blind-spot factor the engine has no way to check."),
+            "description": BLIND_SPOT_DISPLAY.get(f, "NRE blind-spot factor the tool has no way to check."),
             "rationale": BLIND_SPOT_REASON.get(
-                f, "No intake-schema field maps to this factor, so the engine has no data to check it."
+                f, "No intake-schema field maps to this factor, so the tool has no data to check it."
             ),
         }
         for f in case.unmapped_factors
