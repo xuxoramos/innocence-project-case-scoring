@@ -76,16 +76,16 @@
         <input type="hidden" name="_pdf_token" value="{{ pdf_token }}" />
         <input type="hidden" name="_pdf_name" value="{{ pdf_name }}" />
         <fieldset class="meta">
-          <legend>Run settings</legend>
+          <legend>Record lookup</legend>
           <label for="_source">Record source</label>
           <select id="_source" name="_source">
             {% for s in sources %}
             <option value="{{ s.key }}" {% if s.key == default_source %}selected{% endif %}>{{ s.label }}</option>
             {% endfor %}
           </select>
-          <label for="_applicant_ref">Applicant reference</label>
+          <label for="_applicant_ref">Your case reference</label>
           <input id="_applicant_ref" name="_applicant_ref" placeholder="e.g. intake-2025-014" />
-          <label for="_chapter">Chapter</label>
+          <label for="_chapter">Innocence Project chapter</label>
           <input id="_chapter" name="_chapter" value="PA" />
         </fieldset>
 
@@ -108,7 +108,7 @@
         </fieldset>
         {% endfor %}
 
-        <button type="submit">Save to case list</button>
+        <button type="submit">Save to worklist</button>
         <span id="busy" class="htmx-indicator">&nbsp;working&hellip;</span>
       </form>
 

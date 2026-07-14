@@ -39,11 +39,16 @@
     section.upload button { background: #1b5e20; }
     section.upload button:hover { background: #2e7d32; }
     section.upload .hint { flex-basis: 100%; font-size: .78rem; color: #555; margin-top: .1rem; }
+    .formnote { font-size: .8rem; color: #555; background: #f4f7fb; border-left: 3px solid #102a43;
+      padding: .55rem .8rem; border-radius: 0 6px 6px 0; margin: 0 0 1rem; }
+    .fieldhint { font-size: .74rem; font-weight: 400; color: #777; margin: -.05rem 0 .1rem; }
+    .btnrow { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    .btnhelp { font-size: .78rem; color: #555; margin: .5rem 0 0; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Intake Flagging &mdash; element review</h1>
+    <h1>Case intake</h1>
     <p>{{ scope_statement }}</p>
   </header>
   <nav class="tabs">
@@ -64,17 +69,23 @@
   </section>
   <main>
     <form hx-post="/flag" hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy">
+      <p class="formnote">
+        The tool locates a court record by the applicant&rsquo;s <strong>name</strong> and
+        <strong>year of conviction</strong> &mdash; those two fields do the matching (there is no
+        geographic gate). Everything else is for your own notes and does not affect what is found.
+      </p>
       <fieldset class="meta">
-        <legend>Run settings</legend>
+        <legend>Record lookup</legend>
         <label for="_source">Record source</label>
         <select id="_source" name="_source">
           {% for s in sources %}
           <option value="{{ s.key }}" {% if s.key == default_source %}selected{% endif %}>{{ s.label }}</option>
           {% endfor %}
         </select>
-        <label for="_applicant_ref">Applicant reference</label>
+        <label for="_applicant_ref">Your case reference</label>
         <input id="_applicant_ref" name="_applicant_ref" placeholder="e.g. intake-2025-014" />
-        <label for="_chapter">Chapter</label>
+        <p class="fieldhint">For your own tracking. Not used to match records.</p>
+        <label for="_chapter">Innocence Project chapter</label>
         <input id="_chapter" name="_chapter" value="PA" />
       </fieldset>
 
@@ -97,15 +108,22 @@
       </fieldset>
       {% endfor %}
 
-      <button type="submit">Flag elements</button>
-      <button type="button" hx-post="/intake/save" hx-include="closest form"
-        hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy"
-        style="background:#1b5e20; margin-left:.5rem;">Save to case list</button>
-      <span id="busy" class="htmx-indicator">&nbsp;working&hellip;</span>
+      <div class="btnrow">
+        <button type="submit">Flag elements</button>
+        <button type="button" hx-post="/intake/save" hx-include="closest form"
+          hx-target="#result" hx-swap="innerHTML" hx-indicator="#busy"
+          style="background:#1b5e20;">Save to worklist</button>
+        <span id="busy" class="htmx-indicator">&nbsp;working&hellip;</span>
+      </div>
+      <p class="btnhelp">
+        <strong>Flag elements</strong> previews the analysis and saves nothing.
+        <strong>Save to worklist</strong> keeps the case and looks up its court records in the
+        background.
+      </p>
     </form>
 
     <section id="result">
-      <div class="placeholder">Submit an intake to see flagged elements and record-search results.</div>
+      <div class="placeholder">Submit an intake to see flagged elements and the record-search results. Remember: no flags is not a clean bill, and a gap in the record is reported as a gap.</div>
     </section>
   </main>
 </body>
