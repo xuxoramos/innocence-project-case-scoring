@@ -1,0 +1,26 @@
+<div class="cf-flag disp-{{ f.disposition }}" id="flag-{{ f.id }}">
+  <div class="meta">
+    <strong>{{ f.element }}</strong>
+    &middot; basis: <span class="{% if f.inferred %}inferred{% endif %}">{{ f.basis }}</span>
+    &middot; extraction: {{ f.extraction_confidence }}
+    &middot; OCR: {{ f.ocr_confidence }}
+    {% if f.verification_source %}&middot; verify: {{ f.verification_source }}{% endif %}
+  </div>
+  {% if f.source_passage %}<div class="passage">{{ f.source_passage }}</div>{% endif %}
+  {% if f.descriptors %}
+  <div class="descriptors">
+    {% for d in f.descriptors %}<span class="descriptor"><b>{{ d.label }}:</b> {{ d.value }}</span>{% endfor %}
+  </div>
+  {% endif %}
+  {% if f.inference_note %}<div class="meta">note: {{ f.inference_note }}</div>{% endif %}
+  <div class="disposition">
+    <span class="disp-current">Reviewer: <strong>{{ f.disposition_label }}</strong>{% if f.disposition_at %} <span class="muted">({{ f.disposition_at }})</span>{% endif %}</span>
+    <form class="disp-form" hx-post="/cases/submitted/{{ case_id }}/flags/{{ f.id }}/disposition"
+          hx-target="#flag-{{ f.id }}" hx-swap="outerHTML">
+      <button name="disposition" value="confirmed" type="submit">Confirm</button>
+      <button name="disposition" value="not_present" type="submit">Not this</button>
+      <button name="disposition" value="needs_more" type="submit">Needs more</button>
+      <button name="disposition" value="undecided" type="submit">Clear</button>
+    </form>
+  </div>
+</div>

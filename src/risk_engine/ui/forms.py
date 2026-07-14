@@ -15,6 +15,7 @@ from ..intake.schema import IntakeCategory, field_by_key, near_universal_fields
 from ..labels import NRE_FACTOR_COLUMNS
 from ..packet import CasePacket, RecordSearchStatus
 from ..models import FlagBasis, FlagCategory
+from ..casefiles import DISPOSITION_DISPLAY, DISPOSITION_UNDECIDED
 
 #: Schema keys rendered as multi-line text areas rather than single-line inputs.
 _MULTILINE_KEYS = frozenset(
@@ -497,9 +498,11 @@ def case_file_view(case_file) -> dict:
     Shows the saved intake as the same §5.1 form the reviewer filled in, plus the
     record-retrieval status (``NOT_STARTED`` in phase 1 — no court records pulled
     yet, an unstarted retrieval, never a clean result per §6.6) and any intake
-    content the structuring layer could not place. No factors or flags yet: those
-    are produced once records are linked (spec v3 points 2–4).
+    content the structuring layer could not place. Once records are linked the
+    persisted per-element flags are shown, each with its reviewer disposition —
+    still per-element and never combined into a case-level number (§3.1).
     """
+    flag_groups = _stored_flag_groups(case_file.flags)
     return {
         "case_id": case_file.case_id,
         "name": case_file.name,
@@ -521,5 +524,46 @@ def case_file_view(case_file) -> dict:
         "pdf_original_name": case_file.pdf_original_name,
         "intake_form": intake_form_view(case_file.to_intake()),
         "unmapped": list(case_file.unmapped),
+        "flag_groups": flag_groups,
+        "flag_count": sum(len(g["flags"]) for g in flag_groups),
+        "has_flags": bool(flag_groups),
+        "notes": list(case_file.notes),
     }
+
+
+def stored_flag_view(flag: dict) -> dict:
+    """Enrich one persisted case-file flag dict for the template (with disposition)."""
+    label, description = factor_display(flag.get("category", ""))
+    disposition = flag.get("disposition", DISPOSITION_UNDECIDED)
+    ocr = flag.get("ocr_confidence")
+    return {
+        "id": flag.get("id", ""),
+        "category": flag.get("category", ""),
+        "element": label,
+        "element_description": description,
+        "basis": flag.get("basis", ""),
+        "inferred": flag.get("basis") == FlagBasis.INFERRED.value,
+        "extraction_confidence": f"{float(flag.get('extraction_confidence', 0.0)):.2f}",
+        "ocr_confidence": "n/a" if ocr is None else f"{float(ocr):.2f}",
+        "source_passage": " ".join((flag.get("source_passage") or "").split()),
+        "inference_note": flag.get("inference_note", ""),
+        "verification_source": flag.get("verification_source"),
+        "descriptors": _descriptor_view(flag.get("descriptors") or {}),
+        "disposition": disposition,
+        "disposition_label": DISPOSITION_DISPLAY.get(disposition, disposition),
+        "disposition_note": flag.get("disposition_note", ""),
+        "disposition_at": flag.get("disposition_at", ""),
+    }
+
+
+def _stored_flag_groups(flags: list[dict]) -> list[dict]:
+    """Group persisted case-file flags by category (enum order), each flag enriched."""
+    views = [stored_flag_view(f) for f in flags]
+    groups: list[dict] = []
+    for category in FlagCategory:
+        members = [v for v in views if v["category"] == category.value]
+        if members:
+            groups.append({"label": factor_display(category.value)[0], "flags": members})
+    return groups
+
 

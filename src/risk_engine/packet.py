@@ -13,6 +13,7 @@ from __future__ import annotations
 import enum
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from uuid import uuid4
 
 from .intake.record import IntakeRecord
 from .intake.schema import IntakeCategory, field_by_key
@@ -173,6 +174,38 @@ def _group_flags(flags: Iterable[Flag]) -> list[FlagGroup]:
         if members:
             groups.append(FlagGroup(category=category, flags=members))
     return groups
+
+
+def serialize_packet_flags(packet: CasePacket) -> list[dict]:
+    """Flatten a packet's flags into persistable dicts for a live case file.
+
+    Each dict carries a stable ``id`` (so a reviewer disposition can target one
+    flag) plus every checkable field the packet shows, and starts ``undecided``.
+    This is storage for the human-in-the-loop workflow; the flags stay per-element
+    and are never combined into a score (README v2 §3.1).
+    """
+    out: list[dict] = []
+    for group in packet.flag_groups:
+        for flag in group.flags:
+            out.append(
+                {
+                    "id": uuid4().hex[:12],
+                    "category": flag.category.value,
+                    "basis": flag.basis.value,
+                    "extraction_confidence": float(flag.extraction_confidence),
+                    "ocr_confidence": (
+                        None if flag.ocr_confidence is None else float(flag.ocr_confidence)
+                    ),
+                    "source_passage": " ".join(flag.source_passage.split()),
+                    "inference_note": flag.inference_note or "",
+                    "verification_source": flag.verification_source,
+                    "descriptors": dict(flag.descriptors),
+                    "disposition": "undecided",
+                    "disposition_note": "",
+                    "disposition_at": "",
+                }
+            )
+    return out
 
 
 def assemble_packet(

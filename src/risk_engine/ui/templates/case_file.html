@@ -57,6 +57,28 @@
     .rs-spin { display: inline-block; width: .7rem; height: .7rem; margin-right: .35rem; border-radius: 50%;
       border: 2px solid #b7c7d6; border-top-color: #4a90d9; animation: rs-spin 0.8s linear infinite; vertical-align: -1px; }
     @keyframes rs-spin { to { transform: rotate(360deg); } }
+    .flag-group { margin: 0 0 1rem; }
+    .flag-group > strong { display: block; font-size: .82rem; text-transform: uppercase; letter-spacing: .03em;
+      color: #102a43; border-bottom: 2px solid #e3e9f0; padding-bottom: .2rem; margin-bottom: .5rem; }
+    .cf-flag { border: 1px solid var(--line); border-left: 4px solid #b7c7d6; border-radius: 6px;
+      padding: .6rem .8rem; margin: 0 0 .6rem; background: #fafbfc; }
+    .cf-flag.disp-confirmed { border-left-color: #1b5e20; background: #f3faf4; }
+    .cf-flag.disp-not_present { border-left-color: #8a6d00; background: #fffdf5; }
+    .cf-flag.disp-needs_more { border-left-color: #4a90d9; background: #f5f9fd; }
+    .cf-flag .meta { font-size: .78rem; color: #556; }
+    .cf-flag .meta .inferred { color: #8a6d00; font-style: italic; }
+    .cf-flag .passage { font-size: .88rem; margin: .35rem 0; padding-left: .6rem; border-left: 2px solid #e3e9f0; color: #223; }
+    .cf-flag .descriptors { display: flex; flex-wrap: wrap; gap: .4rem; margin: .3rem 0; }
+    .cf-flag .descriptor { font-size: .74rem; background: #eef2f7; color: #334; padding: .1rem .5rem; border-radius: 4px; }
+    .cf-flag .disposition { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+      margin-top: .5rem; padding-top: .5rem; border-top: 1px dashed #e0e0e0; }
+    .cf-flag .disp-current { font-size: .8rem; color: #445; }
+    .cf-flag .disp-form { display: inline-flex; gap: .3rem; flex-wrap: wrap; margin: 0; }
+    .cf-flag .disp-form button { font-size: .74rem; padding: .2rem .55rem; border: 1px solid var(--line);
+      background: #fff; border-radius: 4px; cursor: pointer; }
+    .cf-flag .disp-form button:hover { background: #eef2f7; }
+    .noflags { font-size: .84rem; color: #6b6b6b; }
+    ul.packet-notes { margin: .3rem 0 0; padding-left: 1.2rem; }
   </style>
 </head>
 <body>
@@ -137,6 +159,36 @@
       {% include "_record_status.html" %}
     </section>
 
+    {% if case.linked_record_count > 0 %}
+    {% set case_id = case.case_id %}
+    <section class="block">
+      <h3>4. Flagged elements ({{ case.flag_count }})</h3>
+      <p class="intake-note">
+        Each element below matched a documented category of concern in the linked record and is
+        checkable against the cited source. Set your disposition per element &mdash; that is your
+        judgement on one element, never a case-level score or rank.
+      </p>
+      {% if case.has_flags %}
+      {% for group in case.flag_groups %}
+      <div class="flag-group">
+        <strong>{{ group.label }}</strong>
+        {% for f in group.flags %}{% include "_case_file_flag.html" %}{% endfor %}
+      </div>
+      {% endfor %}
+      {% else %}
+      <p class="noflags">No elements flagged in the linked record. Per the scope note above, that is
+        <em>not</em> a finding that the case is sound &mdash; only that none of the checked elements appeared.</p>
+      {% endif %}
+      {% if case.notes %}
+      <h4 style="margin:1rem 0 .3rem; font-size:.82rem; text-transform:uppercase; letter-spacing:.03em; color:#102a43;">Notes</h4>
+      <ul class="packet-notes" style="font-size:.86rem; color:#555;">
+        {% for n in case.notes %}<li>{{ n }}</li>{% endfor %}
+      </ul>
+      <p class="noflags" style="font-size:.8rem;">Descriptive record facts only &mdash; not flags, not scored.</p>
+      {% endif %}
+    </section>
+    {% endif %}
+
     {% if case.record_terminal and case.linked_record_count == 0 %}
     <section class="block">
       <h3>Manual text fallback</h3>
@@ -159,7 +211,7 @@
 
     {% if case.has_pdf %}
     <section class="block">
-      <h3>4. Original intake PDF</h3>
+      <h3>5. Original intake PDF</h3>
       <p class="intake-note">
         The intake document this case file was prefilled from is retained here as the
         verification surface. The form above is a structured reading of it &mdash; check it

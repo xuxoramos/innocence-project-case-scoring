@@ -31,6 +31,7 @@ from ..calibration import calibrated_pipeline
 from ..casefiles import (
     RECORD_STATUS_ACQUIRING,
     RECORD_STATUS_LINKED,
+    VALID_DISPOSITIONS,
     CaseFileStore,
     case_file_from_intake,
     case_pdf_path,
@@ -39,6 +40,7 @@ from ..casefiles import (
     save_staged_pdf,
     staged_pdf_path,
     update_case_file,
+    update_flag_disposition,
 )
 from ..casework import start_retrieval
 from ..innocence_project import find_ip_case
@@ -50,6 +52,7 @@ from ..retrieval import (
     build_packet_for_intake,
     packet_from_pasted_text,
 )
+from ..packet import serialize_packet_flags
 from ..store import CaseStore, THIN_SUPPORT
 from .forms import (
     APPLICANT_REF_FIELD,
@@ -64,6 +67,7 @@ from .forms import (
     packet_view,
     parse_intake_form,
     prefilled_form_groups,
+    stored_flag_view,
 )
 
 _HERE = Path(__file__).resolve().parent
@@ -433,10 +437,46 @@ async def case_file_paste_text(request: Request, case_id: str) -> HTMLResponse:
         record_status=RECORD_STATUS_LINKED,
         source_key="manual_paste",
         record_searches=searches,
+        flags=serialize_packet_flags(packet),
+        notes=list(packet.notes),
         retrieval_error="",
         retrieved_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
     return templates.TemplateResponse(request, "_packet.html", {"packet": packet_view(packet)})
+
+
+@app.post(
+    "/cases/submitted/{case_id}/flags/{flag_id}/disposition",
+    response_class=HTMLResponse,
+)
+async def set_flag_disposition(
+    request: Request, case_id: str, flag_id: str
+) -> HTMLResponse:
+    """Record a reviewer's disposition on one persisted flag (human-in-the-loop).
+
+    A disposition is a reviewer's judgement on a single element (confirmed in the
+    record, not this element, or needs more records). It is stored on that flag
+    alone and never combined into a case-level score or rank (README v2 §3.1).
+    Returns the re-rendered flag fragment for an htmx in-place swap.
+    """
+    form = await request.form()
+    disposition = str(form.get("disposition", ""))
+    note = str(form.get("note", "")).strip()
+    if disposition not in VALID_DISPOSITIONS:
+        raise HTTPException(status_code=400, detail="unknown disposition")
+    case_file = update_flag_disposition(
+        case_id, flag_id, disposition=disposition, note=note
+    )
+    if case_file is None:
+        raise HTTPException(status_code=404, detail="not found")
+    flag = next((f for f in case_file.flags if f.get("id") == flag_id), None)
+    if flag is None:  # pragma: no cover - update_flag_disposition already checked
+        raise HTTPException(status_code=404, detail="not found")
+    return templates.TemplateResponse(
+        request,
+        "_case_file_flag.html",
+        {"f": stored_flag_view(flag), "case_id": case_id},
+    )
 
 
 @app.get("/cases/{nre_id}", response_class=HTMLResponse)

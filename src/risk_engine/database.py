@@ -79,11 +79,21 @@ CREATE TABLE IF NOT EXISTS case_files (
     retrieval_error   TEXT    NOT NULL DEFAULT '',
     retrieved_at      TEXT    NOT NULL DEFAULT '',
     pdf_stored        INTEGER NOT NULL DEFAULT 0,
-    pdf_original_name TEXT    NOT NULL DEFAULT ''
+    pdf_original_name TEXT    NOT NULL DEFAULT '',
+    flags             TEXT    NOT NULL DEFAULT '[]',
+    notes             TEXT    NOT NULL DEFAULT '[]'
 );
 
 CREATE INDEX IF NOT EXISTS idx_case_files_status ON case_files(record_status);
 """
+
+#: Columns added to ``case_files`` after the table first shipped. Applied as an
+#: idempotent ``ALTER TABLE`` so an existing (git-committed) ``app.db`` gains the
+#: persisted-flags workflow without a destructive rebuild.
+_CASE_FILE_MIGRATIONS: tuple[tuple[str, str], ...] = (
+    ("flags", "ALTER TABLE case_files ADD COLUMN flags TEXT NOT NULL DEFAULT '[]'"),
+    ("notes", "ALTER TABLE case_files ADD COLUMN notes TEXT NOT NULL DEFAULT '[]'"),
+)
 
 
 def connect(path: str | Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
@@ -100,6 +110,15 @@ def connect(path: str | Path = DEFAULT_DB_PATH) -> sqlite3.Connection:
 def init_schema(conn: sqlite3.Connection) -> None:
     """Create the tables and indexes if they do not already exist."""
     conn.executescript(_SCHEMA)
+    _migrate_case_files(conn)
+
+
+def _migrate_case_files(conn: sqlite3.Connection) -> None:
+    """Add later ``case_files`` columns to an already-created table (idempotent)."""
+    have = {r["name"] for r in conn.execute("PRAGMA table_info(case_files)")}
+    for column, ddl in _CASE_FILE_MIGRATIONS:
+        if column not in have:
+            conn.execute(ddl)
 
 
 @contextmanager
@@ -187,8 +206,9 @@ def import_case_file_rows(conn: sqlite3.Connection, rows: Iterable[dict]) -> int
             INSERT OR REPLACE INTO case_files
               (case_id, provenance, submitted_at, chapter, applicant_ref, fields,
                unmapped, record_status, source_key, record_searches,
-               retrieval_error, retrieved_at, pdf_stored, pdf_original_name)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               retrieval_error, retrieved_at, pdf_stored, pdf_original_name,
+               flags, notes)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 row["case_id"],
@@ -205,6 +225,8 @@ def import_case_file_rows(conn: sqlite3.Connection, rows: Iterable[dict]) -> int
                 row.get("retrieved_at", ""),
                 1 if row.get("pdf_stored") else 0,
                 row.get("pdf_original_name", ""),
+                _json(row.get("flags"), "[]"),
+                _json(row.get("notes"), "[]"),
             ),
         )
         n += 1

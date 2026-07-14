@@ -77,6 +77,27 @@ RECORD_SEARCH_STATUS_DISPLAY: dict[str, str] = {
     "not_found": "Not found (gap)",
 }
 
+#: Reviewer disposition per persisted case-file flag (the human-in-the-loop
+#: audit trail). This is a reviewer's judgement on one element, never a model
+#: score and never combined into a case-level number (README v2 \u00a73.1).
+DISPOSITION_UNDECIDED = "undecided"
+DISPOSITION_CONFIRMED = "confirmed"
+DISPOSITION_NOT_PRESENT = "not_present"
+DISPOSITION_NEEDS_MORE = "needs_more"
+
+VALID_DISPOSITIONS: frozenset[str] = frozenset(
+    {DISPOSITION_UNDECIDED, DISPOSITION_CONFIRMED, DISPOSITION_NOT_PRESENT, DISPOSITION_NEEDS_MORE}
+)
+
+#: Human label per disposition value. "Not present" is a reviewer saying the flag
+#: does not hold on the record \u2014 it is never read as the case being clean (\u00a76.6).
+DISPOSITION_DISPLAY: dict[str, str] = {
+    DISPOSITION_UNDECIDED: "Needs review",
+    DISPOSITION_CONFIRMED: "Confirmed in record",
+    DISPOSITION_NOT_PRESENT: "Not this / misfire",
+    DISPOSITION_NEEDS_MORE: "Needs more records",
+}
+
 _YEAR_RE = re.compile(r"(1[89]\d{2}|20\d{2})")
 
 
@@ -114,6 +135,12 @@ class CaseFile:
     retrieved_at: str = ""
     pdf_stored: bool = False
     pdf_original_name: str = ""
+    #: Persisted per-element flags produced when a record was linked (each a dict
+    #: from :func:`risk_engine.packet.serialize_packet_flags`, carrying a stable
+    #: ``id`` and a reviewer ``disposition``). Listed, never summed (\u00a73.1).
+    flags: list[dict] = field(default_factory=list)
+    #: Neutral descriptive notes surfaced with the packet (spec v3 item 11).
+    notes: list[str] = field(default_factory=list)
 
     @property
     def name(self) -> str:
@@ -230,13 +257,13 @@ def load_case_files(db_path: str | Path = DEFAULT_DB_PATH) -> list[CaseFile]:
 # --- SQLite row (de)serialization + JSONL export ------------------------------
 
 #: JSON-encoded columns on the ``case_files`` table.
-_JSON_FILE_COLUMNS: tuple[str, ...] = ("fields", "unmapped", "record_searches")
+_JSON_FILE_COLUMNS: tuple[str, ...] = ("fields", "unmapped", "record_searches", "flags", "notes")
 
 #: Column order for inserts (matches the schema in ``database.py``).
 _FILE_COLUMNS: tuple[str, ...] = (
     "case_id", "provenance", "submitted_at", "chapter", "applicant_ref", "fields",
     "unmapped", "record_status", "source_key", "record_searches", "retrieval_error",
-    "retrieved_at", "pdf_stored", "pdf_original_name",
+    "retrieved_at", "pdf_stored", "pdf_original_name", "flags", "notes",
 )
 
 _INSERT_SQL = (
@@ -268,6 +295,8 @@ def _case_file_to_row(cf: CaseFile) -> tuple:
         cf.retrieved_at,
         1 if cf.pdf_stored else 0,
         cf.pdf_original_name,
+        json.dumps(list(cf.flags)),
+        json.dumps(list(cf.notes)),
     )
 
 
@@ -288,6 +317,8 @@ def _row_to_case_file(row) -> CaseFile:
         retrieved_at=row["retrieved_at"],
         pdf_stored=bool(row["pdf_stored"]),
         pdf_original_name=row["pdf_original_name"],
+        flags=json.loads(row["flags"]) if row["flags"] else [],
+        notes=json.loads(row["notes"]) if row["notes"] else [],
     )
 
 
@@ -329,7 +360,8 @@ _STORE_LOCK = threading.Lock()
 #: Fields :func:`update_case_file` is allowed to mutate (guards against typos
 #: silently writing junk attributes onto the dataclass).
 _UPDATABLE_FIELDS: frozenset[str] = frozenset(
-    {"record_status", "source_key", "record_searches", "retrieval_error", "retrieved_at"}
+    {"record_status", "source_key", "record_searches", "retrieval_error", "retrieved_at",
+     "flags", "notes"}
 )
 
 
@@ -371,6 +403,55 @@ def update_case_file(
             ).fetchone()
         _refresh_export(db_path)
     return _row_to_case_file(row)
+
+
+def update_flag_disposition(
+    case_id: str,
+    flag_id: str,
+    *,
+    disposition: str,
+    note: str = "",
+    db_path: str | Path = DEFAULT_DB_PATH,
+) -> CaseFile | None:
+    """Set one persisted flag's reviewer disposition (the human-in-the-loop step).
+
+    Loads the case file's ``flags`` JSON, updates the single flag whose ``id``
+    matches, stamps who-decided-when, and writes it back with a targeted UPDATE.
+    Returns the updated case file, ``None`` if the case id or flag id is unknown.
+    This records a reviewer's judgement on one element; it never scores or ranks.
+    """
+    if disposition not in VALID_DISPOSITIONS:
+        raise ValueError(f"unknown disposition: {disposition!r}")
+    with _STORE_LOCK:
+        with _db.connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT flags FROM case_files WHERE case_id = ?", (case_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            flags = json.loads(row["flags"]) if row["flags"] else []
+            matched = False
+            for flag in flags:
+                if flag.get("id") == flag_id:
+                    flag["disposition"] = disposition
+                    flag["disposition_note"] = note
+                    flag["disposition_at"] = datetime.now(timezone.utc).isoformat(
+                        timespec="seconds"
+                    )
+                    matched = True
+                    break
+            if not matched:
+                return None
+            conn.execute(
+                "UPDATE case_files SET flags = ? WHERE case_id = ?",
+                (json.dumps(flags), case_id),
+            )
+            out = conn.execute(
+                "SELECT * FROM case_files WHERE case_id = ?", (case_id,)
+            ).fetchone()
+        _refresh_export(db_path)
+    return _row_to_case_file(out)
+
 
 
 #: Handles are our own opaque ids (``CF-<hex>`` case ids, uuid hex tokens); this

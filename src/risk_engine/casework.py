@@ -28,7 +28,7 @@ from .casefiles import (
     update_case_file,
 )
 from .intake.record import IntakeRecord
-from .packet import RecordSearch, RecordSearchStatus
+from .packet import RecordSearch, RecordSearchStatus, serialize_packet_flags
 from .processing import Pipeline
 from .retrieval import MIN_RECORD_TEXT_CHARS, build_packet_for_intake
 
@@ -99,6 +99,8 @@ def run_retrieval_job(
         db_path=db_path,
         record_status=status,
         record_searches=_serialize_records(packet.records),
+        flags=serialize_packet_flags(packet),
+        notes=list(packet.notes),
         retrieval_error="",
         retrieved_at=_now(),
     )
