@@ -432,12 +432,11 @@ Innocent" (2020). Actors: police, prosecutors, forensic analysts, other official
 
 ## 10. Consultant Review Reconciliation (2026-07-13)
 
-A civic-tech consultant reviewed an early spec draft (archived at
-`docs/spec-review-by-civic-tech-consultant.md`). That document is a **greenfield
-MVP proposal** written without visibility into the built system; it independently
-converges on much of this design, proposes several worthwhile additions, and
-contains two items that conflict with binding rules or with the data itself. This
-section records the reconciliation. Where the review conflicts with README v2 or
+A civic-tech consultant reviewed an early spec draft (kept internal). That
+review is a **greenfield MVP proposal** written without visibility into the built
+system; it independently converges on much of this design, proposes several
+worthwhile additions, and contains two items that conflict with binding rules or
+with the data itself. This section records the reconciliation. Where the review conflicts with README v2 or
 this spec, README v2 and this spec win.
 
 ### 10.1 Accepted (to implement, in dependency order)
