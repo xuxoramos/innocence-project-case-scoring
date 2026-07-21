@@ -1,13 +1,18 @@
 # Project Brief: Case Element Flagging & Intake Support Engine
 ### A Proof-of-Concept for Innocence Project Case Processing
 
-**Status:** Draft for review (v2 — supersedes case-level scoring approach)
-**Target partner:** Pennsylvania Innocence Project (Pittsburgh / Allegheny County pilot)
+**Status:** Working proof-of-concept
+**Designed for:** Innocence Network intake screening &mdash; built as a Pennsylvania / Allegheny County pilot, jurisdiction-agnostic by design
 **Document owner:** [Xuxoramos]
 
 ---
 
 *This brief describes the system as it currently stands. The rationale for pivoting away from the original case-scoring concept, and the alternative approaches considered and firmly rejected during scoping, are preserved in [METHODOLOGY_DISCUSSION.md](METHODOLOGY_DISCUSSION.md).*
+
+> **Try it.** A guided walkthrough on the shared demo instance is in
+> [docs/demo-guide.md](docs/demo-guide.md). To run the tool locally with your own
+> case material (your data never leaves your machine), see
+> [docs/local-deployment.md](docs/local-deployment.md).
 
 ## 1. Problem Statement
 
@@ -46,14 +51,13 @@ Two framings were considered during scoping and firmly rejected: a case-level **
 **In scope:**
 - Intake questionnaire digitization and structuring: convert handwritten/scanned questionnaires into a consistent structured format
 - A common intake field schema, built by reviewing publicly available intake questionnaires/screening forms across multiple Innocence Network chapters (not just Pennsylvania) to identify the fields that recur across organizations
-- Automated retrieval of matching public court records for a given intake questionnaire, where digitized records exist, limited to Allegheny County, Pennsylvania for the POC
+- Automated retrieval of matching public court records for a given intake questionnaire, where digitized records exist (via the CourtListener public court-record API); retrieval matches on applicant name and conviction year with no geographic gate, since a flagged element is checkable regardless of where the case was tried
 - Element-level flagging applied to whatever records are retrieved (see Section 5), surfaced individually, never combined into a case-level score
 - Backfilling the structured intake schema using Innocence Project's own published exoneration case data (innocenceproject.org/all-cases), purely to validate that the schema and extraction pipeline correctly populate from real case material — not to train any outcome-prediction model (see Section 5.2)
 
 **Explicitly out of scope for POC:**
 - Any case-level score, rank, or composite judgment of any kind
 - Any synthetic labeling of still-incarcerated individuals' cases as likely wrongful (Section 3.2) — permanently out of scope, not just for this phase
-- Any jurisdiction outside Allegheny County
 - Any automated outreach (FOIA requests, subpoenas, contact with evidence custodians)
 - Searching/scanning a historical archive for *new* candidate cases the chapter hasn't received an intake request for — this system processes cases that come in through the existing intake pipeline, it does not go looking for cases on its own
 - Integration with case management systems before legal/governance review (Section 9) is complete
@@ -66,7 +70,7 @@ The tool moves a single incoming intake request through five plain steps and pro
 
 1. **The intake arrives.** An incarcerated person's completed questionnaire comes in, usually handwritten or scanned.
 2. **The tool reads and structures it.** It converts the questionnaire into a consistent, readable format, and records how confident it is in each field it read — so a reviewer can see where the reading was clean and where it was uncertain.
-3. **It pulls matching public records.** Where Allegheny County court records have been digitized, it retrieves the ones that match the applicant, and states plainly which expected records it looked for but could not find.
+3. **It pulls matching public records.** Where court records have been digitized (via the CourtListener public API), it retrieves the ones that match the applicant, and states plainly which expected records it looked for but could not find.
 4. **It flags individual elements.** Against those records it raises specific, separate flags — a discredited forensic method, a named official with a documented history, a witness-identification circumstance, an evidentiary gap — each shown with the exact passage it came from and its own confidence.
 5. **It assembles a case packet.** The flags are grouped by type and handed to the attorney, each standing on its own, never summed into a single judgment.
 
@@ -165,7 +169,7 @@ This is a meaningful distinction and the pipeline should be built to respect it:
 - This category is treated as higher-effort and higher-risk than the others in Section 5.2, and should be the first candidate for descoping if POC timeline or sourcing quality is insufficient.
 
 ### 6.6 Public Record Retrieval Coverage Is Uneven
-**Risk:** Digitization and public availability of Allegheny County court records varies by era and record type; automated retrieval will have gaps the system can't fill.
+**Risk:** Digitization and public availability of court records varies widely by jurisdiction, era, and record type; automated retrieval will have gaps the system can't fill.
 
 **Mitigation:** The case packet (Section 8) states explicitly which records were searched for and not found, distinct from records that were searched for and returned no relevant flags — these are different states and should never be visually conflated.
 

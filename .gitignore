@@ -218,3 +218,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 docs/*.html
+
+# Private operator notes (host/deploy details — never commit)
+docs/operator-runbook.md
