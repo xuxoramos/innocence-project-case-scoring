@@ -221,3 +221,6 @@ docs/*.html
 
 # Private operator notes (host/deploy details — never commit)
 docs/operator-runbook.md
+
+# Internal design review (consultant critique; kept local, not published)
+docs/spec-review-by-civic-tech-consultant.md
